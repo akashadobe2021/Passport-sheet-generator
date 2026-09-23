@@ -617,6 +617,53 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
               <span>Photo Edge Border (0.2mm)</span>
             </label>
           </div>
+
+          <div className="pt-2 border-t border-zinc-800/80 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={layout.includeBarcodeStamp || false}
+                  onChange={(e) =>
+                    setLayout((p) => ({
+                      ...p,
+                      includeBarcodeStamp: e.target.checked,
+                      orderToken: p.orderToken || `TK-${Math.floor(1000 + Math.random() * 9000)}`,
+                    }))
+                  }
+                  className="rounded accent-amber-400"
+                />
+                <span className="flex items-center gap-1.5 font-medium text-amber-400">
+                  <span>Print Shop Barcode Stamp</span>
+                </span>
+              </label>
+            </div>
+
+            {layout.includeBarcodeStamp && (
+              <div className="bg-zinc-950/80 p-2.5 rounded-lg border border-zinc-800 space-y-2 text-[11px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400">Job Token #:</span>
+                  <input
+                    type="text"
+                    value={layout.orderToken || ''}
+                    onChange={(e) => setLayout((p) => ({ ...p, orderToken: e.target.value }))}
+                    placeholder="TK-1082"
+                    className="w-24 font-mono font-bold text-amber-400 bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-right"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400">Customer Name:</span>
+                  <input
+                    type="text"
+                    value={layout.customerName || ''}
+                    onChange={(e) => setLayout((p) => ({ ...p, customerName: e.target.value }))}
+                    placeholder="Customer Name"
+                    className="w-32 text-zinc-200 bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-right"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -12,12 +12,14 @@ import { TemplateManager } from './components/TemplateManager';
 import { HistorySection } from './components/HistorySection';
 import { DocsArchitecture } from './components/DocsArchitecture';
 import { ServerConnectionModal } from './components/ServerConnectionModal';
+import { PrintShopQueue } from './components/PrintShopQueue';
 import {
   CropState,
   LayoutConfig,
   PhotoPreset,
   QualityValidation,
   SavedTemplate,
+  PrintShopOrder,
 } from './types/passport';
 import { ServerStatusResponse } from './types/serverStatus';
 import { PHOTO_PRESETS, PAPER_SIZES } from './constants/presets';
@@ -31,11 +33,12 @@ import { generateSamplePassportPhoto } from './utils/samplePhoto';
 import { generatePassportSheetPdf, downloadPdfBlob } from './services/pdfService';
 import { StorageService } from './services/storageService';
 import { fetchServerStatus } from './services/serverStatusService';
+import { PrintShopService } from './services/printShopService';
 import confetti from 'canvas-confetti';
 
 export default function App() {
   const [activeView, setActiveView] = useState<
-    'studio' | 'crop-focus' | 'templates' | 'history' | 'docs'
+    'studio' | 'crop-focus' | 'orders' | 'templates' | 'history' | 'docs'
   >('studio');
 
   // Loaded photograph state
@@ -333,6 +336,31 @@ export default function App() {
     window.print();
   };
 
+  const handleLoadOrderToStudio = (order: PrintShopOrder) => {
+    // 1. Find matching preset
+    const preset = PHOTO_PRESETS.find((p) => p.id === order.presetId) || PHOTO_PRESETS[0];
+    setSelectedPreset(preset);
+
+    // 2. Configure Layout with Barcode Tracking Stamp
+    setLayout((prev) => ({
+      ...prev,
+      paperSize: order.paperSize,
+      copies: order.copies,
+      includeBarcodeStamp: true,
+      orderToken: order.tokenNumber,
+      customerName: order.customerName,
+      studioName: PrintShopService.getSettings().studioName,
+    }));
+
+    // 3. Mark status as processing if it was queued
+    if (order.status === 'queued') {
+      PrintShopService.updateOrderStatus(order.id, 'processing');
+    }
+
+    // 4. Switch to Sheet Studio
+    setActiveView('studio');
+  };
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans antialiased selection:bg-amber-400 selection:text-zinc-950">
       {/* Universal Top Header */}
@@ -417,7 +445,12 @@ export default function App() {
           />
         )}
 
-        {/* VIEW 3: TEMPLATES */}
+        {/* VIEW 3: PRINT SHOP & TOKEN ORDERS (PHASE 5) */}
+        {activeView === 'orders' && (
+          <PrintShopQueue onLoadOrderToStudio={handleLoadOrderToStudio} />
+        )}
+
+        {/* VIEW 4: TEMPLATES */}
         {activeView === 'templates' && (
           <TemplateManager
             currentLayout={layout}
@@ -428,10 +461,10 @@ export default function App() {
           />
         )}
 
-        {/* VIEW 4: EXPORT HISTORY */}
+        {/* VIEW 5: EXPORT HISTORY */}
         {activeView === 'history' && <HistorySection />}
 
-        {/* VIEW 5: TECHNICAL DOCS & ARCHITECTURE */}
+        {/* VIEW 6: TECHNICAL DOCS & ARCHITECTURE */}
         {activeView === 'docs' && <DocsArchitecture />}
       </main>
 

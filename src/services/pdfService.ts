@@ -2,6 +2,7 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { LayoutConfig, PaperSize } from '../types/passport';
 import { PAPER_SIZES } from '../constants/presets';
 import { calculateSheetLayout } from './imageProcessing';
+import { BarcodeService } from './barcodeService';
 
 const MM_TO_PT = 72 / 25.4; // 2.834645669
 
@@ -47,8 +48,47 @@ export async function generatePassportSheetPdf(
   const photoHeightPt = photoHeightMm * MM_TO_PT;
   const tickLenPt = 2.0 * MM_TO_PT;
 
-  // Header text if requested
-  if (layout.includeHeader && layout.headerText) {
+  // Header text or Print Shop Barcode Tracking Stamp
+  if (layout.includeBarcodeStamp && layout.orderToken) {
+    const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const token = layout.orderToken;
+    const studio = layout.studioName || 'STUDIO PRINT LAB';
+    const cust = layout.customerName ? ` · Client: ${layout.customerName}` : '';
+    const headerStr = `${studio} · [TOKEN: ${token}]${cust} · ${layout.copies} COPIES · ${dpi} DPI`;
+
+    page.drawText(headerStr, {
+      x: layout.marginMm * MM_TO_PT,
+      y: pageHeightPt - (layout.marginMm * 0.45 * MM_TO_PT),
+      size: 7.5,
+      font,
+      color: rgb(0.1, 0.12, 0.18),
+    });
+
+    // Embed barcode image on the top right
+    try {
+      const barcodeDataUrl = BarcodeService.generateBarcodeDataUrl(token, {
+        width: 2,
+        height: 36,
+        displayValue: true,
+        fontSize: 10,
+      });
+      if (barcodeDataUrl) {
+        const barcodeBytes = await fetch(barcodeDataUrl).then((r) => r.arrayBuffer());
+        const barcodeImg = await pdfDoc.embedPng(barcodeBytes);
+        const barcodeWidthPt = 35 * MM_TO_PT;
+        const barcodeHeightPt = 6 * MM_TO_PT;
+
+        page.drawImage(barcodeImg, {
+          x: pageWidthPt - (layout.marginMm * MM_TO_PT) - barcodeWidthPt,
+          y: pageHeightPt - (layout.marginMm * 0.75 * MM_TO_PT) - (barcodeHeightPt * 0.5),
+          width: barcodeWidthPt,
+          height: barcodeHeightPt,
+        });
+      }
+    } catch (e) {
+      console.warn('Could not embed barcode into PDF:', e);
+    }
+  } else if (layout.includeHeader && layout.headerText) {
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     page.drawText(layout.headerText, {
       x: layout.marginMm * MM_TO_PT,

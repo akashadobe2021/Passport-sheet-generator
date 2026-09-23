@@ -3,6 +3,7 @@ import {
   Camera,
   Layers,
   Crop,
+  Store,
   Bookmark,
   History,
   BookOpen,
@@ -13,8 +14,8 @@ import {
 import { QualityValidation } from '../types/passport';
 
 interface HeaderProps {
-  activeView: 'studio' | 'crop-focus' | 'templates' | 'history' | 'docs';
-  setActiveView: (view: 'studio' | 'crop-focus' | 'templates' | 'history' | 'docs') => void;
+  activeView: 'studio' | 'crop-focus' | 'orders' | 'templates' | 'history' | 'docs';
+  setActiveView: (view: 'studio' | 'crop-focus' | 'orders' | 'templates' | 'history' | 'docs') => void;
   hasImage: boolean;
   quality: QualityValidation | null;
   targetDpi: 300 | 600;
@@ -78,6 +79,18 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Crop className="w-3.5 h-3.5 text-sky-400" />
             <span>Face & Crop Editor</span>
+          </button>
+
+          <button
+            onClick={() => setActiveView('orders')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors ${
+              activeView === 'orders'
+                ? 'bg-zinc-800 text-amber-400 shadow-sm font-semibold'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <Store className="w-3.5 h-3.5 text-amber-400" />
+            <span>Print Shop & Tokens</span>
           </button>
 
           <button

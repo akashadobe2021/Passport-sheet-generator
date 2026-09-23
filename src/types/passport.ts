@@ -48,6 +48,41 @@ export interface LayoutConfig {
   borderWidthMm: number;
   includeHeader: boolean;
   headerText: string;
+  includeBarcodeStamp?: boolean;
+  orderToken?: string;
+  customerName?: string;
+  studioName?: string;
+  barcodeType?: 'code128' | 'qr';
+}
+
+export interface PrintShopOrder {
+  id: string;
+  tokenNumber: string; // e.g. "TK-1048"
+  customerName: string;
+  phone: string;
+  serviceType: string; // e.g. "Indian Passport (35×45mm)"
+  presetId: string;
+  copies: number;
+  paperType: '260gsm-glossy' | 'matte-photo' | 'lustre' | 'plain-card';
+  paperSize: PaperSize;
+  price: number;
+  paymentStatus: 'paid' | 'pending' | 'partial';
+  status: 'queued' | 'processing' | 'ready' | 'delivered';
+  notes?: string;
+  createdAt: string;
+  pickupTime?: string;
+  imageDataUrl?: string;
+  appliedCrop?: CropState;
+}
+
+export interface PrinterProfile {
+  id: string;
+  name: string;
+  type: 'inkjet' | 'dyesub' | 'laser' | 'minilab';
+  recommendedPaper: string;
+  dpi: 300 | 600;
+  notes: string;
+  iccProfileName?: string;
 }
 
 export interface QualityValidation {

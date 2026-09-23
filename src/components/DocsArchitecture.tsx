@@ -454,13 +454,13 @@ model Settings {
               </p>
             </div>
 
-            <div className="p-3.5 bg-neutral-950 border border-neutral-800 rounded-lg opacity-85">
+            <div className="p-3.5 bg-neutral-950 border border-emerald-500/30 rounded-lg">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-neutral-200">Phase 5: Print Shop Edition & Barcode Tracking</span>
-                <span className="text-[11px] font-mono text-neutral-400">Planned · 20 Hours</span>
+                <span className="font-semibold text-emerald-400">Phase 5: Print Shop Edition & Barcode Tracking</span>
+                <span className="text-[11px] font-mono text-emerald-300">COMPLETED · 20 Hours</span>
               </div>
               <p className="text-neutral-400 mt-1">
-                Customer token queue, barcode/QR order stamp on sheet margin, and direct thermal/dye-sub printer spooling.
+                Customer token queue, Code-128 barcode / QR order stamp on sheet margins, thermal customer receipts, and photo printer profiles.
               </p>
             </div>
           </div>

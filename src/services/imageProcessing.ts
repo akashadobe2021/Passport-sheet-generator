@@ -1,5 +1,6 @@
 import { CropState, LayoutConfig, QualityValidation } from '../types/passport';
 import { PAPER_SIZES } from '../constants/presets';
+import { BarcodeService } from './barcodeService';
 
 /**
  * Calculates effective printing DPI and provides quality verification
@@ -368,8 +369,37 @@ export function renderCompleteSheetCanvas(
   const photoH = mmToPx(photoHeightMm);
   const borderWidth = mmToPx(layout.borderWidthMm);
 
-  // Draw Header / Metadata if enabled
-  if (layout.includeHeader && layout.headerText) {
+  // Draw Header / Metadata or Print Shop Barcode Stamp if enabled
+  if (layout.includeBarcodeStamp && layout.orderToken) {
+    ctx.save();
+    const token = layout.orderToken;
+    const studio = layout.studioName || 'STUDIO PRINT LAB';
+    const cust = layout.customerName ? ` · Client: ${layout.customerName}` : '';
+    const headerStr = `${studio} · [TOKEN: ${token}]${cust} · ${layout.copies} COPIES · ${dpi} DPI`;
+
+    ctx.fillStyle = '#0F172A';
+    ctx.font = `bold ${Math.max(10, Math.round(mmToPx(2.6)))}px 'JetBrains Mono', monospace`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(headerStr, mmToPx(layout.marginMm), mmToPx(layout.marginMm * 0.3));
+
+    // Draw Barcode on the top right margin
+    const barcodeW = Math.round(mmToPx(38));
+    const barcodeH = Math.round(mmToPx(6));
+    const barcodeX = sheetPixelW - mmToPx(layout.marginMm) - barcodeW;
+    const barcodeY = Math.round(mmToPx(layout.marginMm * 0.15));
+
+    BarcodeService.drawBarcodeToCanvas(
+      ctx,
+      token,
+      barcodeX,
+      barcodeY,
+      barcodeW,
+      barcodeH,
+      true
+    );
+    ctx.restore();
+  } else if (layout.includeHeader && layout.headerText) {
     ctx.save();
     ctx.fillStyle = '#64748B';
     ctx.font = `${Math.round(mmToPx(2.5))}px 'JetBrains Mono', monospace`;
