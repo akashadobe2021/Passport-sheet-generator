@@ -86,9 +86,13 @@ export function renderSinglePassportPhoto(
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  // Base background fill
-  ctx.fillStyle = crop.bgColor !== 'original' ? crop.bgColor : '#FFFFFF';
-  ctx.fillRect(0, 0, pixelWidth, pixelHeight);
+  // Base background fill (clear for transparent, or fill with white/specified color)
+  if (crop.bgColor === 'transparent') {
+    ctx.clearRect(0, 0, pixelWidth, pixelHeight);
+  } else {
+    ctx.fillStyle = crop.bgColor !== 'original' ? crop.bgColor : '#FFFFFF';
+    ctx.fillRect(0, 0, pixelWidth, pixelHeight);
+  }
 
   // Save context state for photo transform
   ctx.save();
@@ -126,66 +130,111 @@ export function renderSinglePassportPhoto(
   );
   ctx.restore();
 
-  // If background replacement is active, apply background chroma filter
+  // If background replacement or removal is active, apply background chroma & alpha cutout
   if (crop.bgColor !== 'original') {
-    applyBackgroundReplacement(ctx, pixelWidth, pixelHeight, crop.bgColor, crop.bgTolerance);
+    applyBackgroundReplacement(ctx, pixelWidth, pixelHeight, crop.bgColor, crop.bgTolerance, crop.bgFeather);
   }
 
   return canvas;
 }
 
 /**
- * Replaces non-subject backdrop pixels with the selected studio passport color
- * (Pure White, Studio Blue, Light Grey) with boundary sampling & tolerance
+ * Replaces or removes non-subject backdrop pixels
+ * Supports:
+ * - 'transparent' (Clean cutout with alpha channel for PNG / digital upload)
+ * - Solid passport studio colors (Pure White, Studio Blue, Light Grey, or custom hex)
  */
-function applyBackgroundReplacement(
+export function applyBackgroundReplacement(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  targetHexColor: string,
-  tolerance: number = 25
+  targetColor: string,
+  tolerance: number = 25,
+  feather: number = 2
 ) {
   const imgData = ctx.getImageData(0, 0, width, height);
   const data = imgData.data;
 
-  // Sample top corners to deduce original backdrop color
-  const samplePoints = [
+  // Sample top corners and top edge to accurately deduce background backdrop color
+  const sampleIndices = [
     0, // top-left
-    (width - 1) * 4, // top-right
-    (Math.floor(width * 0.1)) * 4,
-    (Math.floor(width * 0.9)) * 4,
+    Math.min(data.length - 4, (Math.floor(width * 0.05)) * 4),
+    Math.min(data.length - 4, (Math.floor(width * 0.95)) * 4),
+    Math.min(data.length - 4, (width - 1) * 4), // top-right
+    Math.min(data.length - 4, (Math.floor(height * 0.1) * width + Math.floor(width * 0.02)) * 4),
+    Math.min(data.length - 4, (Math.floor(height * 0.1) * width + Math.floor(width * 0.98)) * 4),
   ];
 
   let bgR = 0, bgG = 0, bgB = 0;
-  samplePoints.forEach((idx) => {
+  sampleIndices.forEach((idx) => {
     bgR += data[idx];
     bgG += data[idx + 1];
     bgB += data[idx + 2];
   });
-  bgR /= samplePoints.length;
-  bgG /= samplePoints.length;
-  bgB /= samplePoints.length;
+  bgR /= sampleIndices.length;
+  bgG /= sampleIndices.length;
+  bgB /= sampleIndices.length;
 
-  // Parse target color hex
-  const targetR = parseInt(targetHexColor.slice(1, 3), 16);
-  const targetG = parseInt(targetHexColor.slice(3, 5), 16);
-  const targetB = parseInt(targetHexColor.slice(5, 7), 16);
+  const isTransparent = targetColor === 'transparent';
+  let targetR = 255, targetG = 255, targetB = 255;
+
+  if (!isTransparent) {
+    const hex = targetColor.startsWith('#') ? targetColor : '#FFFFFF';
+    if (hex.length >= 7) {
+      targetR = parseInt(hex.slice(1, 3), 16) || 255;
+      targetG = parseInt(hex.slice(3, 5), 16) || 255;
+      targetB = parseInt(hex.slice(5, 7), 16) || 255;
+    }
+  }
 
   const tolSq = tolerance * tolerance * 3;
+  const featherSq = Math.max(1, (tolerance + feather * 3) ** 2 * 3);
 
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
+  // Center head protection box to avoid removing skin/hair if background matches
+  const centerCenterX = width / 2;
+  const centerCenterY = height * 0.45;
+  const headRadiusX = width * 0.22;
+  const headRadiusY = height * 0.25;
 
-    const distSq = (r - bgR) ** 2 + (g - bgG) ** 2 + (b - bgB) ** 2;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
 
-    if (distSq < tolSq) {
-      // Direct backdrop match
-      const blend = Math.min(1, Math.sqrt(distSq / tolSq));
-      data[i] = Math.round(targetR * (1 - blend) + r * blend);
-      data[i + 1] = Math.round(targetG * (1 - blend) + g * blend);
-      data[i + 2] = Math.round(targetB * (1 - blend) + b * blend);
+      // Check distance to sampled background color
+      const distSq = (r - bgR) ** 2 + (g - bgG) ** 2 + (b - bgB) ** 2;
+
+      // Check if inside protected face core
+      const dx = (x - centerCenterX) / headRadiusX;
+      const dy = (y - centerCenterY) / headRadiusY;
+      const inFaceCore = (dx * dx + dy * dy) < 0.65;
+
+      if (distSq < tolSq && !inFaceCore) {
+        if (isTransparent) {
+          // Complete cutout
+          data[i + 3] = 0;
+        } else {
+          // Direct backdrop replacement
+          data[i] = targetR;
+          data[i + 1] = targetG;
+          data[i + 2] = targetB;
+          data[i + 3] = 255;
+        }
+      } else if (distSq < featherSq && !inFaceCore) {
+        // Feathered edge transition
+        const blend = (Math.sqrt(distSq) - tolerance * Math.sqrt(3)) / ((feather * 3 + 1) * Math.sqrt(3));
+        const clampedBlend = Math.max(0, Math.min(1, blend));
+
+        if (isTransparent) {
+          data[i + 3] = Math.round(255 * clampedBlend);
+        } else {
+          data[i] = Math.round(targetR * (1 - clampedBlend) + r * clampedBlend);
+          data[i + 1] = Math.round(targetG * (1 - clampedBlend) + g * clampedBlend);
+          data[i + 2] = Math.round(targetB * (1 - clampedBlend) + b * clampedBlend);
+        }
+      }
     }
   }
 

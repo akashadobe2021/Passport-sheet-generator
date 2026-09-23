@@ -30,8 +30,8 @@ export interface CropState {
   panX: number; // in pixels
   panY: number; // in pixels
   rotation: number; // degrees -180 to 180
-  bgColor: 'original' | '#FFFFFF' | '#F8FAFC' | '#D0E4F7' | '#E2E8F0';
-  bgTolerance: number; // 1 to 50
+  bgColor: 'original' | 'transparent' | '#FFFFFF' | '#F8FAFC' | '#D0E4F7' | '#E2E8F0' | string;
+  bgTolerance: number; // 1 to 80
   bgFeather: number; // 0 to 10
 }
 

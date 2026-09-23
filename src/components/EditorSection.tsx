@@ -11,7 +11,12 @@ import {
   Paintbrush,
   Maximize2,
   Move,
-  Smartphone
+  Smartphone,
+  Scissors,
+  Wand2,
+  Check,
+  Pipette,
+  Layers
 } from 'lucide-react';
 import { CropState, FaceDetectionBox, PhotoPreset } from '../types/passport';
 import { detectFaceAndComputeCrop } from '../services/faceDetection';
@@ -49,6 +54,7 @@ export const EditorSection: React.FC<EditorSectionProps> = ({
   const [detectedFace, setDetectedFace] = useState<FaceDetectionBox | null>(null);
   const [isDetectingFace, setIsDetectingFace] = useState(false);
   const [detectionNotice, setDetectionNotice] = useState<string | null>(null);
+  const [customColorHex, setCustomColorHex] = useState<string>('#E0F2FE');
 
   const photoWidthMm = selectedPreset.id === 'custom' ? customWidthMm : selectedPreset.widthMm;
   const photoHeightMm = selectedPreset.id === 'custom' ? customHeightMm : selectedPreset.heightMm;
@@ -66,9 +72,11 @@ export const EditorSection: React.FC<EditorSectionProps> = ({
 
     ctx.clearRect(0, 0, w, h);
 
-    // Fill background
-    ctx.fillStyle = crop.bgColor !== 'original' ? crop.bgColor : '#FFFFFF';
-    ctx.fillRect(0, 0, w, h);
+    // If background is NOT transparent and NOT original, fill with target background color
+    if (crop.bgColor !== 'original' && crop.bgColor !== 'transparent') {
+      ctx.fillStyle = crop.bgColor;
+      ctx.fillRect(0, 0, w, h);
+    }
 
     // Save and transform
     ctx.save();
@@ -101,9 +109,9 @@ export const EditorSection: React.FC<EditorSectionProps> = ({
     );
     ctx.restore();
 
-    // If background replacement is active, apply quick visual simulation
+    // If background removal or color replacement is active, apply quick visual cutout
     if (crop.bgColor !== 'original') {
-      applyQuickBgSimulation(ctx, w, h, crop.bgColor, crop.bgTolerance);
+      applyQuickBgCutout(ctx, w, h, crop.bgColor, crop.bgTolerance, crop.bgFeather);
     }
 
     // Draw Indian Passport Guideline Overlay
@@ -130,7 +138,6 @@ export const EditorSection: React.FC<EditorSectionProps> = ({
       drawH = drawW / imgAspect;
     }
     const imgScale = drawH / image.naturalHeight;
-    // Account for CSS display size vs canvas pixel resolution
     const rect = canvas.getBoundingClientRect();
     const cssToCanvasRatio = canvas.width / (rect.width || 1);
     return cssToCanvasRatio / imgScale;
@@ -180,12 +187,10 @@ export const EditorSection: React.FC<EditorSectionProps> = ({
     setIsDragging(true);
 
     if (e.touches.length === 1) {
-      // 1 Finger: Pan
       const touch = e.touches[0];
       touchStartRef.current = { x: touch.clientX, y: touch.clientY };
       pinchStartDistanceRef.current = null;
     } else if (e.touches.length === 2) {
-      // 2 Fingers: Pinch Zoom
       const touch1 = e.touches[0];
       const touch2 = e.touches[1];
       const distance = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
@@ -202,7 +207,6 @@ export const EditorSection: React.FC<EditorSectionProps> = ({
     if (!image) return;
 
     if (e.touches.length === 1 && touchStartRef.current) {
-      // 1 Finger Panning
       const touch = e.touches[0];
       const dx = touch.clientX - touchStartRef.current.x;
       const dy = touch.clientY - touchStartRef.current.y;
@@ -215,14 +219,12 @@ export const EditorSection: React.FC<EditorSectionProps> = ({
         panY: prev.panY + dy * factor,
       }));
     } else if (e.touches.length === 2 && pinchStartDistanceRef.current) {
-      // 2 Finger Pinch-To-Zoom & Pan
       const touch1 = e.touches[0];
       const touch2 = e.touches[1];
       const currentDist = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
       const scaleMultiplier = currentDist / pinchStartDistanceRef.current;
       const nextZoom = Math.max(0.5, Math.min(3.5, Number((initialZoomRef.current * scaleMultiplier).toFixed(2))));
 
-      // Also pan with the two-finger midpoint
       if (touchStartRef.current) {
         const midX = (touch1.clientX + touch2.clientX) / 2;
         const midY = (touch1.clientY + touch2.clientY) / 2;
@@ -299,8 +301,11 @@ export const EditorSection: React.FC<EditorSectionProps> = ({
     });
   };
 
+  const isBgRemoved = crop.bgColor !== 'original';
+
   return (
     <div className="bg-zinc-900/90 border border-zinc-800 rounded-xl p-4 lg:p-5 flex flex-col gap-4 shadow-xl">
+      {/* Top Header & Actions Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
@@ -310,7 +315,7 @@ export const EditorSection: React.FC<EditorSectionProps> = ({
             </span>
           </div>
           <p className="text-xs text-zinc-400 mt-0.5">
-            Use your finger or mouse to drag the face into alignment with the guidelines (70–80% head coverage).
+            Drag to position face, auto-align with 1-click, and remove or customize the background.
           </p>
         </div>
 
@@ -336,7 +341,7 @@ export const EditorSection: React.FC<EditorSectionProps> = ({
             title="Auto-detect face and align to 75% height"
           >
             <Sparkles className="w-3.5 h-3.5 text-zinc-950" />
-            <span>{isDetectingFace ? 'Detecting Face...' : 'Auto-Center Face'}</span>
+            <span>{isDetectingFace ? 'Detecting...' : 'Auto-Center Face'}</span>
           </button>
 
           <button
@@ -359,12 +364,16 @@ export const EditorSection: React.FC<EditorSectionProps> = ({
         </div>
       )}
 
-      {/* Main Interactive Touch/Mouse Canvas Viewport */}
+      {/* Main Interactive Touch/Mouse Canvas Viewport + Controls */}
       <div className="flex flex-col xl:flex-row items-center justify-center gap-6">
         <div className="relative flex flex-col items-center">
-          {/* Passport Aspect Ratio Frame with Touch Action None */}
+          {/* Passport Aspect Ratio Frame with Transparency Checkerboard support */}
           <div
-            className="relative border-2 border-zinc-700 hover:border-amber-400/80 rounded-md shadow-2xl overflow-hidden cursor-grab active:cursor-grabbing bg-zinc-950 touch-none select-none transition-colors"
+            className={`relative border-2 border-zinc-700 hover:border-amber-400/80 rounded-md shadow-2xl overflow-hidden cursor-grab active:cursor-grabbing touch-none select-none transition-colors ${
+              crop.bgColor === 'transparent'
+                ? 'bg-[linear-gradient(45deg,#18181b_25%,transparent_25%),linear-gradient(-45deg,#18181b_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#18181b_75%),linear-gradient(-45deg,transparent_75%,#18181b_75%)] bg-[size:16px_16px] bg-[position:0_0,0_8px,8px_-8px,-8px_0px] bg-zinc-900'
+                : 'bg-zinc-950'
+            }`}
             style={{
               width: aspect >= 1 ? '320px' : `${Math.round(380 * aspect)}px`,
               height: aspect >= 1 ? `${Math.round(320 / aspect)}px` : '380px',
@@ -399,6 +408,14 @@ export const EditorSection: React.FC<EditorSectionProps> = ({
             <div className="absolute bottom-2 right-2 bg-zinc-950/85 border border-zinc-800 backdrop-blur px-2 py-0.5 rounded text-[10px] font-mono text-zinc-300 pointer-events-none">
               {photoWidthMm} × {photoHeightMm} mm
             </div>
+
+            {/* Background Cutout status indicator pill */}
+            {crop.bgColor === 'transparent' && (
+              <div className="absolute top-2 left-2 bg-emerald-500/90 text-zinc-950 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow pointer-events-none">
+                <Scissors className="w-3 h-3" />
+                <span>Cutout / Transparent</span>
+              </div>
+            )}
           </div>
 
           {/* User Guide Hint (Mobile & Desktop) */}
@@ -411,7 +428,7 @@ export const EditorSection: React.FC<EditorSectionProps> = ({
         </div>
 
         {/* Sliders & Fine Tuning Controls */}
-        <div className="w-full xl:w-80 flex flex-col gap-3.5 text-xs bg-zinc-950/50 p-4 rounded-xl border border-zinc-800/80">
+        <div className="w-full xl:w-88 flex flex-col gap-3.5 text-xs bg-zinc-950/60 p-4 rounded-xl border border-zinc-800/90 shadow-md">
           {/* Zoom Slider */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-zinc-300">
@@ -488,85 +505,188 @@ export const EditorSection: React.FC<EditorSectionProps> = ({
             </div>
           </div>
 
-          {/* Background Replacement Tools */}
-          <div className="space-y-2 pt-2 border-t border-zinc-800">
-            <div className="flex items-center justify-between text-zinc-300">
-              <span className="font-medium">Studio Background</span>
-              <span className="text-[11px] text-zinc-400">
-                {crop.bgColor === 'original' ? 'Original' : 'Color Replaced'}
+          {/* --------------------------------------------------------- */}
+          {/* BACKGROUND REMOVAL & COLOR STUDIO SECTION                 */}
+          {/* --------------------------------------------------------- */}
+          <div className="pt-3 border-t border-zinc-800/90 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-zinc-200 font-semibold text-xs">
+                <Scissors className="w-3.5 h-3.5 text-amber-400" />
+                <span>Background Removal & Color</span>
+              </div>
+              <span className="text-[10px] font-mono text-amber-400">
+                {crop.bgColor === 'original'
+                  ? 'Original'
+                  : crop.bgColor === 'transparent'
+                  ? 'Transparent Cutout'
+                  : 'Studio Replaced'}
               </span>
             </div>
 
-            <div className="grid grid-cols-4 gap-1.5">
+            {/* Quick 1-Click Background Remover Button */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setCrop((p) => ({ ...p, bgColor: p.bgColor === 'transparent' ? 'original' : 'transparent' }))}
+                className={`py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm ${
+                  crop.bgColor === 'transparent'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-emerald-950/40 ring-1 ring-emerald-500/40'
+                    : 'bg-zinc-900 hover:bg-zinc-850 text-zinc-200 border-zinc-700 hover:border-zinc-600'
+                }`}
+              >
+                <Scissors className={`w-3.5 h-3.5 ${crop.bgColor === 'transparent' ? 'text-emerald-400' : 'text-amber-400'}`} />
+                <span>{crop.bgColor === 'transparent' ? '✓ BG Removed' : 'Remove Background'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCrop((p) => ({ ...p, bgColor: '#FFFFFF' }))}
+                className={`py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm ${
+                  crop.bgColor === '#FFFFFF'
+                    ? 'bg-amber-400 text-zinc-950 border-amber-400 shadow-amber-950/40 ring-1 ring-amber-300'
+                    : 'bg-zinc-900 hover:bg-zinc-850 text-zinc-200 border-zinc-700 hover:border-zinc-600'
+                }`}
+                title="Official Passport White Background"
+              >
+                <span className="w-3 h-3 rounded-full bg-white border border-zinc-400 shadow-xs inline-block" />
+                <span>White (Standard)</span>
+              </button>
+            </div>
+
+            {/* Background Style Options Palette */}
+            <div className="grid grid-cols-5 gap-1.5 pt-1">
               <button
                 type="button"
                 onClick={() => setCrop((p) => ({ ...p, bgColor: 'original' }))}
-                className={`py-1.5 px-2 rounded text-center border text-[11px] font-medium transition-colors ${
+                className={`py-1.5 px-1 rounded text-center border text-[11px] font-medium transition-colors ${
                   crop.bgColor === 'original'
                     ? 'bg-zinc-800 text-amber-400 border-amber-500/50 font-semibold'
                     : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'
                 }`}
+                title="Keep original background untouched"
               >
                 Original
               </button>
 
               <button
                 type="button"
+                onClick={() => setCrop((p) => ({ ...p, bgColor: 'transparent' }))}
+                className={`py-1.5 px-1 rounded text-center border text-[11px] font-medium flex items-center justify-center gap-1 transition-colors ${
+                  crop.bgColor === 'transparent'
+                    ? 'bg-zinc-800 text-emerald-400 border-emerald-500/50 font-semibold'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'
+                }`}
+                title="Cutout transparent background"
+              >
+                <Scissors className="w-2.5 h-2.5 text-emerald-400" />
+                <span>Cutout</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setCrop((p) => ({ ...p, bgColor: '#FFFFFF' }))}
-                className={`py-1.5 px-2 rounded text-center border text-[11px] font-medium flex items-center justify-center gap-1 transition-colors ${
+                className={`py-1.5 px-1 rounded text-center border text-[11px] font-medium flex items-center justify-center gap-1 transition-colors ${
                   crop.bgColor === '#FFFFFF'
                     ? 'bg-zinc-800 text-amber-400 border-amber-500/50 font-semibold'
                     : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:text-white'
                 }`}
-                title="Indian Passport Standard White Background"
+                title="Pure White (Passport standard)"
               >
                 <span className="w-2.5 h-2.5 rounded-full bg-white border border-zinc-400 inline-block" />
-                White
+                <span>White</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setCrop((p) => ({ ...p, bgColor: '#D0E4F7' }))}
-                className={`py-1.5 px-2 rounded text-center border text-[11px] font-medium flex items-center justify-center gap-1 transition-colors ${
+                className={`py-1.5 px-1 rounded text-center border text-[11px] font-medium flex items-center justify-center gap-1 transition-colors ${
                   crop.bgColor === '#D0E4F7'
-                    ? 'bg-zinc-800 text-amber-400 border-amber-500/50 font-semibold'
+                    ? 'bg-zinc-800 text-sky-400 border-sky-500/50 font-semibold'
                     : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:text-white'
                 }`}
-                title="Studio Light Blue Background"
+                title="Studio Light Blue"
               >
                 <span className="w-2.5 h-2.5 rounded-full bg-[#D0E4F7] inline-block" />
-                Blue
+                <span>Blue</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setCrop((p) => ({ ...p, bgColor: '#E2E8F0' }))}
-                className={`py-1.5 px-2 rounded text-center border text-[11px] font-medium flex items-center justify-center gap-1 transition-colors ${
+                className={`py-1.5 px-1 rounded text-center border text-[11px] font-medium flex items-center justify-center gap-1 transition-colors ${
                   crop.bgColor === '#E2E8F0'
                     ? 'bg-zinc-800 text-amber-400 border-amber-500/50 font-semibold'
                     : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:text-white'
                 }`}
-                title="Neutral Studio Grey Background"
+                title="Neutral Studio Grey"
               >
                 <span className="w-2.5 h-2.5 rounded-full bg-[#E2E8F0] inline-block" />
-                Grey
+                <span>Grey</span>
               </button>
             </div>
 
-            {crop.bgColor !== 'original' && (
-              <div className="space-y-1 pt-1">
-                <div className="flex justify-between text-[11px] text-zinc-400">
-                  <span>Color Sensitivity</span>
-                  <span className="font-mono tabular-nums text-zinc-200">{crop.bgTolerance}</span>
-                </div>
+            {/* Custom Color Selector */}
+            <div className="flex items-center gap-2 pt-1">
+              <label className="text-[11px] text-zinc-400 shrink-0">Custom Tint:</label>
+              <div className="flex items-center gap-1.5 flex-1">
                 <input
-                  type="range"
-                  min="5"
-                  max="60"
-                  value={crop.bgTolerance}
-                  onChange={(e) => setCrop((p) => ({ ...p, bgTolerance: parseInt(e.target.value, 10) }))}
-                  className="w-full accent-amber-400 cursor-pointer"
+                  type="color"
+                  value={crop.bgColor.startsWith('#') ? crop.bgColor : customColorHex}
+                  onChange={(e) => {
+                    const col = e.target.value;
+                    setCustomColorHex(col);
+                    setCrop((p) => ({ ...p, bgColor: col }));
+                  }}
+                  className="w-6 h-6 rounded cursor-pointer border border-zinc-700 bg-transparent p-0"
+                  title="Pick custom studio color"
                 />
+                <input
+                  type="text"
+                  value={crop.bgColor.startsWith('#') ? crop.bgColor : ''}
+                  placeholder="#Hex Color"
+                  onChange={(e) => {
+                    const col = e.target.value;
+                    if (col.startsWith('#') && col.length <= 7) {
+                      setCrop((p) => ({ ...p, bgColor: col }));
+                    }
+                  }}
+                  className="w-24 bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 text-[11px] text-zinc-200 font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Advanced Cutout Sensitivity & Feathering Sliders (When BG is active) */}
+            {isBgRemoved && (
+              <div className="space-y-2 pt-2 border-t border-zinc-800/80 bg-zinc-900/60 p-2.5 rounded-lg">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] text-zinc-300">
+                    <span>Background Sensitivity (Tolerance)</span>
+                    <span className="font-mono tabular-nums text-amber-400 font-semibold">{crop.bgTolerance}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="5"
+                    max="80"
+                    value={crop.bgTolerance}
+                    onChange={(e) => setCrop((p) => ({ ...p, bgTolerance: parseInt(e.target.value, 10) }))}
+                    className="w-full accent-amber-400 cursor-pointer"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] text-zinc-300">
+                    <span>Edge Softness (Feather)</span>
+                    <span className="font-mono tabular-nums text-sky-400 font-semibold">{crop.bgFeather}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    value={crop.bgFeather}
+                    onChange={(e) => setCrop((p) => ({ ...p, bgFeather: parseInt(e.target.value, 10) }))}
+                    className="w-full accent-sky-400 cursor-pointer"
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -649,39 +769,94 @@ function drawPassportGuidelines(
 }
 
 /**
- * Fast client-side backdrop replacement simulation on preview canvas
+ * Fast client-side backdrop removal / cutout simulation on preview canvas
  */
-function applyQuickBgSimulation(
+function applyQuickBgCutout(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
-  targetHex: string,
-  tolerance: number
+  targetColor: string,
+  tolerance: number,
+  feather: number = 2
 ) {
   const imgData = ctx.getImageData(0, 0, w, h);
   const data = imgData.data;
 
-  const bgR = data[0];
-  const bgG = data[1];
-  const bgB = data[2];
+  // Sample top corners and top edge
+  const sampleIndices = [
+    0,
+    Math.min(data.length - 4, Math.floor(w * 0.05) * 4),
+    Math.min(data.length - 4, Math.floor(w * 0.95) * 4),
+    Math.min(data.length - 4, (w - 1) * 4),
+    Math.min(data.length - 4, (Math.floor(h * 0.1) * w + Math.floor(w * 0.02)) * 4),
+    Math.min(data.length - 4, (Math.floor(h * 0.1) * w + Math.floor(w * 0.98)) * 4),
+  ];
 
-  const tR = parseInt(targetHex.slice(1, 3), 16);
-  const tG = parseInt(targetHex.slice(3, 5), 16);
-  const tB = parseInt(targetHex.slice(5, 7), 16);
+  let bgR = 0, bgG = 0, bgB = 0;
+  sampleIndices.forEach((idx) => {
+    bgR += data[idx];
+    bgG += data[idx + 1];
+    bgB += data[idx + 2];
+  });
+  bgR /= sampleIndices.length;
+  bgG /= sampleIndices.length;
+  bgB /= sampleIndices.length;
+
+  const isTransparent = targetColor === 'transparent';
+  let targetR = 255, targetG = 255, targetB = 255;
+
+  if (!isTransparent) {
+    const hex = targetColor.startsWith('#') ? targetColor : '#FFFFFF';
+    if (hex.length >= 7) {
+      targetR = parseInt(hex.slice(1, 3), 16) || 255;
+      targetG = parseInt(hex.slice(3, 5), 16) || 255;
+      targetB = parseInt(hex.slice(5, 7), 16) || 255;
+    }
+  }
 
   const tolSq = tolerance * tolerance * 3;
+  const featherSq = Math.max(1, (tolerance + feather * 3) ** 2 * 3);
 
-  for (let i = 0; i < data.length; i += 4) {
-    const distSq =
-      (data[i] - bgR) ** 2 +
-      (data[i + 1] - bgG) ** 2 +
-      (data[i + 2] - bgB) ** 2;
+  const centerCenterX = w / 2;
+  const centerCenterY = h * 0.45;
+  const headRadiusX = w * 0.22;
+  const headRadiusY = h * 0.25;
 
-    if (distSq < tolSq) {
-      const blend = Math.min(1, Math.sqrt(distSq / tolSq));
-      data[i] = Math.round(tR * (1 - blend) + data[i] * blend);
-      data[i + 1] = Math.round(tG * (1 - blend) + data[i + 1] * blend);
-      data[i + 2] = Math.round(tB * (1 - blend) + data[i + 2] * blend);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+
+      const distSq = (r - bgR) ** 2 + (g - bgG) ** 2 + (b - bgB) ** 2;
+
+      // Face core preservation
+      const dx = (x - centerCenterX) / headRadiusX;
+      const dy = (y - centerCenterY) / headRadiusY;
+      const inFaceCore = (dx * dx + dy * dy) < 0.65;
+
+      if (distSq < tolSq && !inFaceCore) {
+        if (isTransparent) {
+          data[i + 3] = 0;
+        } else {
+          data[i] = targetR;
+          data[i + 1] = targetG;
+          data[i + 2] = targetB;
+          data[i + 3] = 255;
+        }
+      } else if (distSq < featherSq && !inFaceCore) {
+        const blend = (Math.sqrt(distSq) - tolerance * Math.sqrt(3)) / ((feather * 3 + 1) * Math.sqrt(3));
+        const clampedBlend = Math.max(0, Math.min(1, blend));
+
+        if (isTransparent) {
+          data[i + 3] = Math.round(255 * clampedBlend);
+        } else {
+          data[i] = Math.round(targetR * (1 - clampedBlend) + r * clampedBlend);
+          data[i + 1] = Math.round(targetG * (1 - clampedBlend) + g * clampedBlend);
+          data[i + 2] = Math.round(targetB * (1 - clampedBlend) + b * clampedBlend);
+        }
+      }
     }
   }
 

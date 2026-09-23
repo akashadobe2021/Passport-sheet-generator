@@ -347,24 +347,37 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
             <span className="font-medium text-zinc-300">Studio Background</span>
             <span>Indian standard: White</span>
           </div>
-          <div className="grid grid-cols-4 gap-1 text-[11px]">
+          <div className="grid grid-cols-5 gap-1 text-[11px]">
             <button
               type="button"
               onClick={() => setCrop((p) => ({ ...p, bgColor: 'original' }))}
               className={`py-1 rounded text-center border transition-colors ${
                 crop.bgColor === 'original'
-                  ? 'bg-zinc-800 text-amber-400 border-amber-500/50'
+                  ? 'bg-zinc-800 text-amber-400 border-amber-500/50 font-semibold'
                   : 'bg-zinc-950/60 text-zinc-400 border-zinc-800'
               }`}
             >
-              Original
+              Orig
+            </button>
+            <button
+              type="button"
+              onClick={() => setCrop((p) => ({ ...p, bgColor: 'transparent' }))}
+              className={`py-1 rounded text-center border transition-colors flex items-center justify-center gap-1 ${
+                crop.bgColor === 'transparent'
+                  ? 'bg-zinc-800 text-emerald-400 border-emerald-500/50 font-semibold'
+                  : 'bg-zinc-950/60 text-zinc-400 border-zinc-800'
+              }`}
+              title="Remove Background (Transparent)"
+            >
+              <Scissors className="w-2.5 h-2.5 text-emerald-400" />
+              <span>Cut</span>
             </button>
             <button
               type="button"
               onClick={() => setCrop((p) => ({ ...p, bgColor: '#FFFFFF' }))}
               className={`py-1 rounded text-center border transition-colors flex items-center justify-center gap-1 ${
                 crop.bgColor === '#FFFFFF'
-                  ? 'bg-zinc-800 text-amber-400 border-amber-500/50'
+                  ? 'bg-zinc-800 text-amber-400 border-amber-500/50 font-semibold'
                   : 'bg-zinc-950/60 text-zinc-300 border-zinc-800'
               }`}
             >
@@ -376,7 +389,7 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
               onClick={() => setCrop((p) => ({ ...p, bgColor: '#D0E4F7' }))}
               className={`py-1 rounded text-center border transition-colors flex items-center justify-center gap-1 ${
                 crop.bgColor === '#D0E4F7'
-                  ? 'bg-zinc-800 text-amber-400 border-amber-500/50'
+                  ? 'bg-zinc-800 text-amber-400 border-amber-500/50 font-semibold'
                   : 'bg-zinc-950/60 text-zinc-300 border-zinc-800'
               }`}
             >
@@ -388,7 +401,7 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
               onClick={() => setCrop((p) => ({ ...p, bgColor: '#E2E8F0' }))}
               className={`py-1 rounded text-center border transition-colors flex items-center justify-center gap-1 ${
                 crop.bgColor === '#E2E8F0'
-                  ? 'bg-zinc-800 text-amber-400 border-amber-500/50'
+                  ? 'bg-zinc-800 text-amber-400 border-amber-500/50 font-semibold'
                   : 'bg-zinc-950/60 text-zinc-300 border-zinc-800'
               }`}
             >
