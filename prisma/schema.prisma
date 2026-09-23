@@ -1,0 +1,74 @@
+// Prisma schema file for Passport Sheet Generator
+// Datasource: SQLite for local execution
+// Models: User, Template, ExportHistory, Settings
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String     @id @default(uuid())
+  name      String
+  email     String?    @unique
+  role      String     @default("operator") // operator, studio_admin, applicant
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  templates Template[]
+  history   ExportHistory[]
+  settings  Settings?
+}
+
+model Template {
+  id         String   @id @default(uuid())
+  name       String
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  width      Float    // Photo width in mm (e.g. 35.0 for Indian passport)
+  height     Float    // Photo height in mm (e.g. 45.0 for Indian passport)
+  paperSize  String   @default("A4") // A4, 4x6, 5x7, Letter
+  orientation String  @default("portrait") // portrait, landscape
+  copies     Int      @default(32) // 4, 8, 16, 24, 32, 40, 48
+  spacing    Float    @default(2.5) // Gap between photos in mm
+  margin     Float    @default(8.0) // Margin from sheet border in mm
+  showCutMarks Boolean @default(true)
+  showBorder   Boolean @default(true)
+  borderWidth  Float   @default(0.2) // Border stroke in mm
+  borderColor  String  @default("#CBD5E1")
+  dpi          Int     @default(300)
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model ExportHistory {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  fileName    String
+  exportType  String   // "pdf" | "png" | "jpg" | "tiff"
+  copiesCount Int
+  paperSize   String
+  dpi         Int      // 300 or 600
+  fileSizeKb  Float?
+  createdAt   DateTime @default(now())
+}
+
+model Settings {
+  id              String   @id @default(uuid())
+  userId          String?  @unique
+  user            User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  defaultDPI      Int      @default(300)
+  defaultCopies   Int      @default(32)
+  defaultPaperSize String  @default("A4")
+  defaultTemplate String   @default("Indian Passport (35x45mm)")
+  autoFaceDetect  Boolean  @default(true)
+  guideOverlay    Boolean  @default(true)
+  studioName      String   @default("Professional Photo Lab")
+  includeHeader   Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+}

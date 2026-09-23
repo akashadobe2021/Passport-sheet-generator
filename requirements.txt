@@ -1,0 +1,30 @@
+# Python requirements for Passport Sheet Generator backend & CLI tools
+# Supports local image processing, MediaPipe face detection, and PDF sheet synthesis
+
+# Web Framework & API Server
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+python-multipart>=0.0.9
+pydantic>=2.6.4
+
+# Image Processing & Manipulation
+Pillow>=10.2.0
+opencv-python-headless>=4.9.0.80
+numpy>=1.26.4
+rembg>=2.0.55
+
+# Face Detection & Landmark Alignment
+mediapipe>=0.10.9
+
+# Print-Ready PDF Generation (Exact millimeter dimensions & 300/600 DPI)
+reportlab>=4.1.0
+pypdf>=4.1.0
+
+# Database & ORM (SQLite / PostgreSQL)
+SQLAlchemy>=2.0.28
+alembic>=1.13.1
+
+# Utilities & Development
+requests>=2.31.0
+pytest>=8.1.1
+python-dotenv>=1.0.1

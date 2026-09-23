@@ -1,0 +1,7 @@
+{
+  "name": "Passport Sheet Generator",
+  "description": "Professional Indian passport-size photo sheet generator for A4 paper with high-resolution 300/600 DPI print-ready PDF export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
