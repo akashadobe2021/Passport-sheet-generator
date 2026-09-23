@@ -6,44 +6,28 @@ import {
   Bookmark,
   History,
   BookOpen,
-  Printer,
-  Download,
   Sparkles,
   CheckCircle2,
   AlertTriangle
 } from 'lucide-react';
 import { QualityValidation } from '../types/passport';
-import { ServerStatusResponse } from '../types/serverStatus';
-import { ServerConnectionBadge } from './ServerConnectionBadge';
 
 interface HeaderProps {
   activeView: 'studio' | 'crop-focus' | 'templates' | 'history' | 'docs';
   setActiveView: (view: 'studio' | 'crop-focus' | 'templates' | 'history' | 'docs') => void;
-  onQuickExport: () => void;
-  onPrint: () => void;
-  isExporting: boolean;
   hasImage: boolean;
   quality: QualityValidation | null;
   targetDpi: 300 | 600;
   setTargetDpi: (dpi: 300 | 600) => void;
-  serverStatus?: ServerStatusResponse | null;
-  isStatusLoading?: boolean;
-  onOpenServerStatusModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   activeView,
   setActiveView,
-  onQuickExport,
-  onPrint,
-  isExporting,
   hasImage,
   quality,
   targetDpi,
   setTargetDpi,
-  serverStatus,
-  isStatusLoading = false,
-  onOpenServerStatusModal,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-zinc-900/95 backdrop-blur-md border-b border-zinc-800/80 px-4 lg:px-6 py-2.5 transition-colors no-print">
@@ -64,8 +48,8 @@ export const Header: React.FC<HeaderProps> = ({
             >
               Passport Sheet Studio
             </a>
-            <span className="text-[10px] text-zinc-400 font-mono mt-0.5">
-              Indian Passport 35×45mm · Print-Ready A4
+            <span className="text-[10px] text-amber-400/90 font-mono mt-0.5">
+              Developer Akash Jangra
             </span>
           </div>
         </div>
@@ -133,17 +117,8 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </nav>
 
-        {/* Zone 3: Server Status, DPI toggle and Primary Action */}
+        {/* Zone 3: DPI toggle and Quality Indicator */}
         <div className="flex items-center gap-2">
-          {/* Server & Cloudinary Connection Indicator */}
-          {onOpenServerStatusModal && (
-            <ServerConnectionBadge
-              status={serverStatus || null}
-              isLoading={isStatusLoading}
-              onClick={onOpenServerStatusModal}
-            />
-          )}
-
           {/* Quality Chip */}
           {quality && (
             <div
@@ -164,7 +139,7 @@ export const Header: React.FC<HeaderProps> = ({
           )}
 
           {/* DPI Switch */}
-          <div className="hidden sm:flex items-center bg-zinc-950 p-0.5 rounded-md border border-zinc-800 text-[11px] font-mono">
+          <div className="flex items-center bg-zinc-950 p-0.5 rounded-md border border-zinc-800 text-[11px] font-mono">
             <button
               onClick={() => setTargetDpi(300)}
               className={`px-2 py-1 rounded transition-colors ${
@@ -186,27 +161,9 @@ export const Header: React.FC<HeaderProps> = ({
               600 DPI
             </button>
           </div>
-
-          <button
-            onClick={onPrint}
-            disabled={!hasImage}
-            title="Browser Print Preview"
-            className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-zinc-300 bg-zinc-800 hover:bg-zinc-700/80 border border-zinc-700/60 rounded-md transition-colors disabled:opacity-40"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span>Print</span>
-          </button>
-
-          <button
-            onClick={onQuickExport}
-            disabled={!hasImage || isExporting}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-zinc-950 bg-amber-400 hover:bg-amber-300 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shadow-sm shadow-amber-950/40"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>{isExporting ? 'Generating PDF...' : 'Download PDF'}</span>
-          </button>
         </div>
       </div>
     </header>
   );
 };
+

@@ -339,16 +339,10 @@ export default function App() {
       <Header
         activeView={activeView}
         setActiveView={setActiveView}
-        onQuickExport={handleQuickExport}
-        onPrint={handleBrowserPrint}
-        isExporting={isExporting}
         hasImage={!!image}
         quality={quality}
         targetDpi={targetDpi}
         setTargetDpi={setTargetDpi}
-        serverStatus={serverStatus}
-        isStatusLoading={isStatusLoading}
-        onOpenServerStatusModal={() => setIsServerModalOpen(true)}
       />
 
       {/* Main Studio Area */}
