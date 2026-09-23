@@ -112,10 +112,9 @@ export function renderSinglePassportPhoto(
   }
 
   // Pan offset scaled to target canvas resolution
-  // Normalize pan relative to source image scale
-  const scaleRatio = pixelHeight / Math.min(img.naturalWidth, img.naturalHeight);
-  const scaledPanX = crop.panX * scaleRatio * crop.zoom;
-  const scaledPanY = crop.panY * scaleRatio * crop.zoom;
+  const imgScale = drawH / img.naturalHeight;
+  const scaledPanX = crop.panX * imgScale;
+  const scaledPanY = crop.panY * imgScale;
 
   // Draw image centered with offset
   ctx.drawImage(

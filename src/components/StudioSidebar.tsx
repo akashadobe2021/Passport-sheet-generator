@@ -106,25 +106,23 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
     img.src = sampleDataUrl;
   };
 
-  const handleAutoCenterFace = () => {
-    if (!image) return;
+  const handleAutoCenterFace = async () => {
+    if (!image || isDetectingFace) return;
     setIsDetectingFace(true);
-    setTimeout(() => {
-      try {
-        const result = detectFaceAndComputeCrop(image, photoWidthMm, photoHeightMm);
-        setCrop((prev) => ({
-          ...prev,
-          zoom: result.recommendedCrop.zoom,
-          panX: result.recommendedCrop.panX,
-          panY: result.recommendedCrop.panY,
-          rotation: 0,
-        }));
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsDetectingFace(false);
-      }
-    }, 50);
+    try {
+      const result = await detectFaceAndComputeCrop(image, photoWidthMm, photoHeightMm);
+      setCrop((prev) => ({
+        ...prev,
+        zoom: result.recommendedCrop.zoom,
+        panX: result.recommendedCrop.panX,
+        panY: result.recommendedCrop.panY,
+        rotation: 0,
+      }));
+    } catch (err) {
+      console.error('Auto-center face failed:', err);
+    } finally {
+      setIsDetectingFace(false);
+    }
   };
 
   const rotateBy = (deg: number) => {
