@@ -39,6 +39,7 @@ export default function App() {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileSizeKb, setFileSizeKb] = useState<number | null>(null);
+  const [cutoutImg, setCutoutImg] = useState<HTMLImageElement | null>(null);
 
   // Selected Photo Preset
   const [selectedPreset, setSelectedPreset] = useState<PhotoPreset>(PHOTO_PRESETS[0]);
@@ -83,6 +84,7 @@ export default function App() {
     const img = new Image();
     img.onload = () => {
       setImage(img);
+      setCutoutImg(null);
       setFileName('sample-indian-passport-photo.jpg');
       setFileSizeKb(184);
     };
@@ -95,8 +97,8 @@ export default function App() {
   // Single Cropped Photo Canvas for Live Preview & PDF generation
   const singlePhotoCanvas = useMemo(() => {
     if (!image) return null;
-    return renderSinglePassportPhoto(image, crop, photoWidthMm, photoHeightMm, 300);
-  }, [image, crop, photoWidthMm, photoHeightMm]);
+    return renderSinglePassportPhoto(image, crop, photoWidthMm, photoHeightMm, 300, cutoutImg);
+  }, [image, crop, photoWidthMm, photoHeightMm, cutoutImg]);
 
   // Quality / DPI calculation
   const quality: QualityValidation | null = useMemo(() => {
@@ -123,6 +125,7 @@ export default function App() {
 
   const handleImageLoaded = (img: HTMLImageElement, name: string, sizeKb: number) => {
     setImage(img);
+    setCutoutImg(null);
     setFileName(name);
     setFileSizeKb(sizeKb);
     setCrop({
@@ -180,7 +183,8 @@ export default function App() {
         crop,
         photoWidthMm,
         photoHeightMm,
-        targetDpi
+        targetDpi,
+        cutoutImg
       );
       const pdfBytes = await generatePassportSheetPdf(
         highResPhoto,
@@ -220,7 +224,8 @@ export default function App() {
           crop,
           photoWidthMm,
           photoHeightMm,
-          targetDpi
+          targetDpi,
+          cutoutImg
         );
 
         const sheetCanvas = renderCompleteSheetCanvas(
@@ -269,20 +274,31 @@ export default function App() {
         crop,
         photoWidthMm,
         photoHeightMm,
-        targetDpi
+        targetDpi,
+        cutoutImg
       );
-
       const ext = format === 'png' ? 'png' : 'jpg';
       const mime = format === 'png' ? 'image/png' : 'image/jpeg';
       const dataUrl = photoCanvas.toDataURL(mime, 0.98);
 
       const a = document.createElement('a');
-      const fileName = `passport-photo-${photoWidthMm}x${photoHeightMm}mm-${targetDpi}dpi.${ext}`;
+      const fileName = `passport-single-${photoWidthMm}x${photoHeightMm}mm-${targetDpi}dpi.${ext}`;
       a.href = dataUrl;
       a.download = fileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+
+      StorageService.recordExport({
+        fileName,
+        exportType: ext as any,
+        copiesCount: 1,
+        paperSize: 'A4',
+        dpi: targetDpi,
+        fileSizeKb: Math.round(dataUrl.length * 0.75 / 1024),
+      });
+
+      triggerConfetti();
     } catch (err) {
       console.error('Single photo export failed:', err);
     }
@@ -293,8 +309,8 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0c0d0e] text-zinc-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
-      {/* Sleek Top Navigation Bar */}
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans antialiased selection:bg-amber-400 selection:text-zinc-950">
+      {/* Universal Top Header */}
       <Header
         activeView={activeView}
         setActiveView={setActiveView}
@@ -338,6 +354,8 @@ export default function App() {
               onDownloadSingle={handleDownloadSinglePhoto}
               isExporting={isExporting}
               targetDpi={targetDpi}
+              cutoutImg={cutoutImg}
+              setCutoutImg={setCutoutImg}
             />
 
             {/* Right Centerpiece: High-Fidelity Sheet Viewport */}
@@ -368,6 +386,8 @@ export default function App() {
             showGuides={showGuides}
             setShowGuides={setShowGuides}
             onReturnToStudio={() => setActiveView('studio')}
+            cutoutImg={cutoutImg}
+            setCutoutImg={setCutoutImg}
           />
         )}
 
@@ -398,7 +418,7 @@ export default function App() {
             <span>Indian Passport Standard (35×45mm · 70–80% Head Fit)</span>
           </div>
           <div className="flex items-center gap-3 text-zinc-400 font-mono text-[11px]">
-            <span>100% Client-Side Local Processing</span>
+            <span>AI Neural Portrait Segmentation</span>
             <span>·</span>
             <span>Uncompressed Vector PDF</span>
           </div>

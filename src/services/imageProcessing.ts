@@ -72,7 +72,8 @@ export function renderSinglePassportPhoto(
   crop: CropState,
   photoWidthMm: number,
   photoHeightMm: number,
-  dpi: number = 300
+  dpi: number = 300,
+  cutoutImg?: HTMLImageElement | null
 ): HTMLCanvasElement {
   const pixelWidth = Math.round((photoWidthMm / 25.4) * dpi);
   const pixelHeight = Math.round((photoHeightMm / 25.4) * dpi);
@@ -86,11 +87,17 @@ export function renderSinglePassportPhoto(
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  // Base background fill (clear for transparent, or fill with white/specified color)
+  const isCutoutActive = crop.bgColor !== 'original';
+  const activeImage = isCutoutActive && cutoutImg ? cutoutImg : img;
+
+  // Base background fill
   if (crop.bgColor === 'transparent') {
     ctx.clearRect(0, 0, pixelWidth, pixelHeight);
+  } else if (isCutoutActive) {
+    ctx.fillStyle = crop.bgColor;
+    ctx.fillRect(0, 0, pixelWidth, pixelHeight);
   } else {
-    ctx.fillStyle = crop.bgColor !== 'original' ? crop.bgColor : '#FFFFFF';
+    ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, pixelWidth, pixelHeight);
   }
 
@@ -101,7 +108,7 @@ export function renderSinglePassportPhoto(
   // Apply rotation
   ctx.rotate((crop.rotation * Math.PI) / 180);
 
-  // Calculate base draw dimensions
+  // Calculate base draw dimensions based on the original image dimensions
   const aspect = photoWidthMm / photoHeightMm;
   const imgAspect = img.naturalWidth / img.naturalHeight;
   let drawW: number;
@@ -122,7 +129,7 @@ export function renderSinglePassportPhoto(
 
   // Draw image centered with offset
   ctx.drawImage(
-    img,
+    activeImage,
     -drawW / 2 + scaledPanX,
     -drawH / 2 + scaledPanY,
     drawW,
@@ -130,8 +137,8 @@ export function renderSinglePassportPhoto(
   );
   ctx.restore();
 
-  // If background replacement or removal is active, apply background chroma & alpha cutout
-  if (crop.bgColor !== 'original') {
+  // If background replacement is active and cutoutImg wasn't ready yet, apply chromatic fallback
+  if (isCutoutActive && !cutoutImg) {
     applyBackgroundReplacement(ctx, pixelWidth, pixelHeight, crop.bgColor, crop.bgTolerance, crop.bgFeather);
   }
 
@@ -155,12 +162,12 @@ export function applyBackgroundReplacement(
   const imgData = ctx.getImageData(0, 0, width, height);
   const data = imgData.data;
 
-  // Sample top corners and top edge to accurately deduce background backdrop color
+  // Sample outer edges only
   const sampleIndices = [
-    0, // top-left
+    0,
     Math.min(data.length - 4, (Math.floor(width * 0.05)) * 4),
     Math.min(data.length - 4, (Math.floor(width * 0.95)) * 4),
-    Math.min(data.length - 4, (width - 1) * 4), // top-right
+    Math.min(data.length - 4, (width - 1) * 4),
     Math.min(data.length - 4, (Math.floor(height * 0.1) * width + Math.floor(width * 0.02)) * 4),
     Math.min(data.length - 4, (Math.floor(height * 0.1) * width + Math.floor(width * 0.98)) * 4),
   ];
@@ -187,14 +194,10 @@ export function applyBackgroundReplacement(
     }
   }
 
-  const tolSq = tolerance * tolerance * 3;
-  const featherSq = Math.max(1, (tolerance + feather * 3) ** 2 * 3);
-
-  // Center head protection box to avoid removing skin/hair if background matches
   const centerCenterX = width / 2;
-  const centerCenterY = height * 0.45;
-  const headRadiusX = width * 0.22;
-  const headRadiusY = height * 0.25;
+  const centerCenterY = height * 0.50;
+  const headRadiusX = width * 0.32;
+  const headRadiusY = height * 0.40;
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -203,36 +206,40 @@ export function applyBackgroundReplacement(
       const g = data[i + 1];
       const b = data[i + 2];
 
-      // Check distance to sampled background color
-      const distSq = (r - bgR) ** 2 + (g - bgG) ** 2 + (b - bgB) ** 2;
-
-      // Check if inside protected face core
       const dx = (x - centerCenterX) / headRadiusX;
       const dy = (y - centerCenterY) / headRadiusY;
-      const inFaceCore = (dx * dx + dy * dy) < 0.65;
+      const distFromCenter = dx * dx + dy * dy;
 
-      if (distSq < tolSq && !inFaceCore) {
+      // Skin tone detection - NEVER replace skin pixels
+      const isSkinTone = r > 70 && g > 40 && b > 25 && r > g && r > b && (r - g > 10);
+      if (distFromCenter < 0.65 || (isSkinTone && distFromCenter < 1.15)) {
+        continue;
+      }
+
+      // Torso check in lower half
+      if (y > height * 0.70 && Math.abs(x - centerCenterX) < width * 0.42) {
+        continue;
+      }
+
+      const distToBg = Math.sqrt((r - bgR) ** 2 + (g - bgG) ** 2 + (b - bgB) ** 2);
+
+      if (distFromCenter > 1.25 && (distToBg < 60 || y < height * 0.12 || x < width * 0.08 || x > width * 0.92)) {
         if (isTransparent) {
-          // Complete cutout
           data[i + 3] = 0;
         } else {
-          // Direct backdrop replacement
           data[i] = targetR;
           data[i + 1] = targetG;
           data[i + 2] = targetB;
           data[i + 3] = 255;
         }
-      } else if (distSq < featherSq && !inFaceCore) {
-        // Feathered edge transition
-        const blend = (Math.sqrt(distSq) - tolerance * Math.sqrt(3)) / ((feather * 3 + 1) * Math.sqrt(3));
-        const clampedBlend = Math.max(0, Math.min(1, blend));
-
+      } else if (distToBg < 40 && !isSkinTone && distFromCenter > 0.85) {
         if (isTransparent) {
-          data[i + 3] = Math.round(255 * clampedBlend);
+          data[i + 3] = 0;
         } else {
-          data[i] = Math.round(targetR * (1 - clampedBlend) + r * clampedBlend);
-          data[i + 1] = Math.round(targetG * (1 - clampedBlend) + g * clampedBlend);
-          data[i + 2] = Math.round(targetB * (1 - clampedBlend) + b * clampedBlend);
+          data[i] = targetR;
+          data[i + 1] = targetG;
+          data[i + 2] = targetB;
+          data[i + 3] = 255;
         }
       }
     }

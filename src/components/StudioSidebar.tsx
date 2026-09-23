@@ -25,6 +25,7 @@ import { CropState, LayoutConfig, PhotoPreset, QualityValidation } from '../type
 import { COPY_OPTIONS, PAPER_SIZES, PHOTO_PRESETS } from '../constants/presets';
 import { generateSamplePassportPhoto } from '../utils/samplePhoto';
 import { detectFaceAndComputeCrop } from '../services/faceDetection';
+import { removePersonBackground } from '../services/aiBackgroundRemoval';
 
 interface StudioSidebarProps {
   image: HTMLImageElement | null;
@@ -51,6 +52,8 @@ interface StudioSidebarProps {
   onDownloadSingle: (format: 'png' | 'jpeg') => void;
   isExporting: boolean;
   targetDpi: 300 | 600;
+  cutoutImg?: HTMLImageElement | null;
+  setCutoutImg?: (img: HTMLImageElement | null) => void;
 }
 
 export const StudioSidebar: React.FC<StudioSidebarProps> = ({
@@ -78,13 +81,37 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
   onDownloadSingle,
   isExporting,
   targetDpi,
+  cutoutImg,
+  setCutoutImg,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeAccordion, setActiveAccordion] = useState<'photo' | 'layout' | 'export'>('layout');
   const [isDetectingFace, setIsDetectingFace] = useState(false);
+  const [isRemovingBg, setIsRemovingBg] = useState(false);
 
   const photoWidthMm = selectedPreset.id === 'custom' ? customWidthMm : selectedPreset.widthMm;
   const photoHeightMm = selectedPreset.id === 'custom' ? customHeightMm : selectedPreset.heightMm;
+
+  const handleSelectBackground = async (newBgColor: string) => {
+    if (newBgColor === 'original') {
+      setCrop((p) => ({ ...p, bgColor: 'original' }));
+      return;
+    }
+
+    setCrop((p) => ({ ...p, bgColor: newBgColor }));
+
+    if (!cutoutImg && image && setCutoutImg && !isRemovingBg) {
+      setIsRemovingBg(true);
+      try {
+        const cutout = await removePersonBackground(image);
+        setCutoutImg(cutout);
+      } catch (err) {
+        console.error('Sidebar BG removal failed:', err);
+      } finally {
+        setIsRemovingBg(false);
+      }
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -350,7 +377,7 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
           <div className="grid grid-cols-5 gap-1 text-[11px]">
             <button
               type="button"
-              onClick={() => setCrop((p) => ({ ...p, bgColor: 'original' }))}
+              onClick={() => handleSelectBackground('original')}
               className={`py-1 rounded text-center border transition-colors ${
                 crop.bgColor === 'original'
                   ? 'bg-zinc-800 text-amber-400 border-amber-500/50 font-semibold'
@@ -361,7 +388,7 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setCrop((p) => ({ ...p, bgColor: 'transparent' }))}
+              onClick={() => handleSelectBackground('transparent')}
               className={`py-1 rounded text-center border transition-colors flex items-center justify-center gap-1 ${
                 crop.bgColor === 'transparent'
                   ? 'bg-zinc-800 text-emerald-400 border-emerald-500/50 font-semibold'
@@ -374,7 +401,7 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setCrop((p) => ({ ...p, bgColor: '#FFFFFF' }))}
+              onClick={() => handleSelectBackground('#FFFFFF')}
               className={`py-1 rounded text-center border transition-colors flex items-center justify-center gap-1 ${
                 crop.bgColor === '#FFFFFF'
                   ? 'bg-zinc-800 text-amber-400 border-amber-500/50 font-semibold'
@@ -386,10 +413,10 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setCrop((p) => ({ ...p, bgColor: '#D0E4F7' }))}
+              onClick={() => handleSelectBackground('#D0E4F7')}
               className={`py-1 rounded text-center border transition-colors flex items-center justify-center gap-1 ${
                 crop.bgColor === '#D0E4F7'
-                  ? 'bg-zinc-800 text-amber-400 border-amber-500/50 font-semibold'
+                  ? 'bg-zinc-800 text-sky-400 border-sky-500/50 font-semibold'
                   : 'bg-zinc-950/60 text-zinc-300 border-zinc-800'
               }`}
             >
@@ -398,7 +425,7 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setCrop((p) => ({ ...p, bgColor: '#E2E8F0' }))}
+              onClick={() => handleSelectBackground('#E2E8F0')}
               className={`py-1 rounded text-center border transition-colors flex items-center justify-center gap-1 ${
                 crop.bgColor === '#E2E8F0'
                   ? 'bg-zinc-800 text-amber-400 border-amber-500/50 font-semibold'

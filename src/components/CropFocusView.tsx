@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Check, Sparkles } from 'lucide-react';
+import { ArrowLeft, Check } from 'lucide-react';
 import { EditorSection } from './EditorSection';
 import { CropState, PhotoPreset } from '../types/passport';
 
@@ -13,6 +13,8 @@ interface CropFocusViewProps {
   showGuides: boolean;
   setShowGuides: (show: boolean) => void;
   onReturnToStudio: () => void;
+  cutoutImg?: HTMLImageElement | null;
+  setCutoutImg?: (img: HTMLImageElement | null) => void;
 }
 
 export const CropFocusView: React.FC<CropFocusViewProps> = ({
@@ -25,6 +27,8 @@ export const CropFocusView: React.FC<CropFocusViewProps> = ({
   showGuides,
   setShowGuides,
   onReturnToStudio,
+  cutoutImg,
+  setCutoutImg,
 }) => {
   return (
     <div className="space-y-4">
@@ -58,6 +62,8 @@ export const CropFocusView: React.FC<CropFocusViewProps> = ({
         customHeightMm={customHeightMm}
         showGuides={showGuides}
         setShowGuides={setShowGuides}
+        cutoutImg={cutoutImg}
+        setCutoutImg={setCutoutImg}
       />
     </div>
   );
