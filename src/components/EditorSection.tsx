@@ -26,6 +26,7 @@ import {
   Undo2
 } from 'lucide-react';
 import { CropState, FaceDetectionBox, PhotoPreset } from '../types/passport';
+import { ServerStatusResponse } from '../types/serverStatus';
 import { detectFaceAndComputeCrop } from '../services/faceDetection';
 import { removePersonBackground, SegmentationProgress } from '../services/aiBackgroundRemoval';
 
@@ -40,6 +41,8 @@ interface EditorSectionProps {
   setShowGuides: (show: boolean) => void;
   cutoutImg?: HTMLImageElement | null;
   setCutoutImg?: (img: HTMLImageElement | null) => void;
+  serverStatus?: ServerStatusResponse | null;
+  onOpenServerStatusModal?: () => void;
 }
 
 export const EditorSection: React.FC<EditorSectionProps> = ({
@@ -53,6 +56,8 @@ export const EditorSection: React.FC<EditorSectionProps> = ({
   setShowGuides,
   cutoutImg: externalCutoutImg,
   setCutoutImg: externalSetCutoutImg,
+  serverStatus,
+  onOpenServerStatusModal,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -857,6 +862,40 @@ export const EditorSection: React.FC<EditorSectionProps> = ({
                   ? 'Transparent Cutout'
                   : 'Studio Replaced'}
               </span>
+            </div>
+
+            {/* Server Connection / Engine Live Status Badge */}
+            <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[11px]">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`w-2 h-2 rounded-full inline-block ${
+                    serverStatus?.cloudinary?.connected
+                      ? 'bg-emerald-400 animate-pulse'
+                      : serverStatus?.gemini?.configured
+                      ? 'bg-sky-400'
+                      : 'bg-amber-400'
+                  }`}
+                />
+                <span className="text-zinc-300 font-mono">
+                  Engine:{' '}
+                  <strong className={serverStatus?.cloudinary?.connected ? 'text-emerald-400' : 'text-zinc-200'}>
+                    {serverStatus?.cloudinary?.connected
+                      ? 'Cloudinary AI (Live)'
+                      : serverStatus?.gemini?.configured
+                      ? 'Gemini Vision AI'
+                      : 'Client Matting'}
+                  </strong>
+                </span>
+              </div>
+              {onOpenServerStatusModal && (
+                <button
+                  type="button"
+                  onClick={onOpenServerStatusModal}
+                  className="text-[10px] text-amber-400 hover:text-amber-300 underline font-mono flex items-center gap-0.5"
+                >
+                  Diagnostics
+                </button>
+              )}
             </div>
 
             {/* Quick 1-Click Action Buttons */}

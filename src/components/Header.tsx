@@ -13,6 +13,8 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { QualityValidation } from '../types/passport';
+import { ServerStatusResponse } from '../types/serverStatus';
+import { ServerConnectionBadge } from './ServerConnectionBadge';
 
 interface HeaderProps {
   activeView: 'studio' | 'crop-focus' | 'templates' | 'history' | 'docs';
@@ -24,6 +26,9 @@ interface HeaderProps {
   quality: QualityValidation | null;
   targetDpi: 300 | 600;
   setTargetDpi: (dpi: 300 | 600) => void;
+  serverStatus?: ServerStatusResponse | null;
+  isStatusLoading?: boolean;
+  onOpenServerStatusModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -36,6 +41,9 @@ export const Header: React.FC<HeaderProps> = ({
   quality,
   targetDpi,
   setTargetDpi,
+  serverStatus,
+  isStatusLoading = false,
+  onOpenServerStatusModal,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-zinc-900/95 backdrop-blur-md border-b border-zinc-800/80 px-4 lg:px-6 py-2.5 transition-colors no-print">
@@ -125,8 +133,17 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </nav>
 
-        {/* Zone 3: DPI toggle and Primary Action */}
+        {/* Zone 3: Server Status, DPI toggle and Primary Action */}
         <div className="flex items-center gap-2">
+          {/* Server & Cloudinary Connection Indicator */}
+          {onOpenServerStatusModal && (
+            <ServerConnectionBadge
+              status={serverStatus || null}
+              isLoading={isStatusLoading}
+              onClick={onOpenServerStatusModal}
+            />
+          )}
+
           {/* Quality Chip */}
           {quality && (
             <div

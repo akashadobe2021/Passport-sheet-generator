@@ -22,6 +22,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { CropState, LayoutConfig, PhotoPreset, QualityValidation } from '../types/passport';
+import { ServerStatusResponse } from '../types/serverStatus';
 import { COPY_OPTIONS, PAPER_SIZES, PHOTO_PRESETS } from '../constants/presets';
 import { generateSamplePassportPhoto } from '../utils/samplePhoto';
 import { detectFaceAndComputeCrop } from '../services/faceDetection';
@@ -54,6 +55,8 @@ interface StudioSidebarProps {
   targetDpi: 300 | 600;
   cutoutImg?: HTMLImageElement | null;
   setCutoutImg?: (img: HTMLImageElement | null) => void;
+  serverStatus?: ServerStatusResponse | null;
+  onOpenServerStatusModal?: () => void;
 }
 
 export const StudioSidebar: React.FC<StudioSidebarProps> = ({
@@ -83,6 +86,8 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
   targetDpi,
   cutoutImg,
   setCutoutImg,
+  serverStatus,
+  onOpenServerStatusModal,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeAccordion, setActiveAccordion] = useState<'photo' | 'layout' | 'export'>('layout');
@@ -372,7 +377,30 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
         <div className="pt-2 border-t border-zinc-800/80">
           <div className="flex items-center justify-between text-[11px] text-zinc-400 mb-1.5">
             <span className="font-medium text-zinc-300">Studio Background</span>
-            <span>Indian standard: White</span>
+            {onOpenServerStatusModal && (
+              <button
+                type="button"
+                onClick={onOpenServerStatusModal}
+                className="text-[10px] font-mono text-amber-400 hover:underline flex items-center gap-1"
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    serverStatus?.cloudinary?.connected
+                      ? 'bg-emerald-400'
+                      : serverStatus?.gemini?.configured
+                      ? 'bg-sky-400'
+                      : 'bg-amber-400'
+                  }`}
+                />
+                <span>
+                  {serverStatus?.cloudinary?.connected
+                    ? 'Cloudinary Live'
+                    : serverStatus?.gemini?.configured
+                    ? 'Gemini Live'
+                    : 'Client Engine'}
+                </span>
+              </button>
+            )}
           </div>
           <div className="grid grid-cols-5 gap-1 text-[11px]">
             <button

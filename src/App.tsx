@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Header } from './components/Header';
 import { StudioSidebar } from './components/StudioSidebar';
 import { StudioViewport } from './components/StudioViewport';
@@ -11,6 +11,7 @@ import { CropFocusView } from './components/CropFocusView';
 import { TemplateManager } from './components/TemplateManager';
 import { HistorySection } from './components/HistorySection';
 import { DocsArchitecture } from './components/DocsArchitecture';
+import { ServerConnectionModal } from './components/ServerConnectionModal';
 import {
   CropState,
   LayoutConfig,
@@ -18,6 +19,7 @@ import {
   QualityValidation,
   SavedTemplate,
 } from './types/passport';
+import { ServerStatusResponse } from './types/serverStatus';
 import { PHOTO_PRESETS, PAPER_SIZES } from './constants/presets';
 import {
   calculatePrintQuality,
@@ -28,6 +30,7 @@ import {
 import { generateSamplePassportPhoto } from './utils/samplePhoto';
 import { generatePassportSheetPdf, downloadPdfBlob } from './services/pdfService';
 import { StorageService } from './services/storageService';
+import { fetchServerStatus } from './services/serverStatusService';
 import confetti from 'canvas-confetti';
 
 export default function App() {
@@ -40,6 +43,28 @@ export default function App() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileSizeKb, setFileSizeKb] = useState<number | null>(null);
   const [cutoutImg, setCutoutImg] = useState<HTMLImageElement | null>(null);
+
+  // Server & Cloudinary Connection Status
+  const [serverStatus, setServerStatus] = useState<ServerStatusResponse | null>(null);
+  const [isStatusLoading, setIsStatusLoading] = useState<boolean>(false);
+  const [isServerModalOpen, setIsServerModalOpen] = useState<boolean>(false);
+
+  const checkConnection = useCallback(async () => {
+    setIsStatusLoading(true);
+    try {
+      const status = await fetchServerStatus();
+      setServerStatus(status);
+    } catch (err) {
+      console.error('Failed to check server connection status:', err);
+    } finally {
+      setIsStatusLoading(false);
+    }
+  }, []);
+
+  // Poll server connection on initial load
+  useEffect(() => {
+    checkConnection();
+  }, [checkConnection]);
 
   // Selected Photo Preset
   const [selectedPreset, setSelectedPreset] = useState<PhotoPreset>(PHOTO_PRESETS[0]);
@@ -321,6 +346,9 @@ export default function App() {
         quality={quality}
         targetDpi={targetDpi}
         setTargetDpi={setTargetDpi}
+        serverStatus={serverStatus}
+        isStatusLoading={isStatusLoading}
+        onOpenServerStatusModal={() => setIsServerModalOpen(true)}
       />
 
       {/* Main Studio Area */}
@@ -356,6 +384,8 @@ export default function App() {
               targetDpi={targetDpi}
               cutoutImg={cutoutImg}
               setCutoutImg={setCutoutImg}
+              serverStatus={serverStatus}
+              onOpenServerStatusModal={() => setIsServerModalOpen(true)}
             />
 
             {/* Right Centerpiece: High-Fidelity Sheet Viewport */}
@@ -388,6 +418,8 @@ export default function App() {
             onReturnToStudio={() => setActiveView('studio')}
             cutoutImg={cutoutImg}
             setCutoutImg={setCutoutImg}
+            serverStatus={serverStatus}
+            onOpenServerStatusModal={() => setIsServerModalOpen(true)}
           />
         )}
 
@@ -408,6 +440,15 @@ export default function App() {
         {/* VIEW 5: TECHNICAL DOCS & ARCHITECTURE */}
         {activeView === 'docs' && <DocsArchitecture />}
       </main>
+
+      {/* Diagnostics & Connection Status Modal */}
+      <ServerConnectionModal
+        isOpen={isServerModalOpen}
+        onClose={() => setIsServerModalOpen(false)}
+        status={serverStatus}
+        isLoading={isStatusLoading}
+        onRefresh={checkConnection}
+      />
 
       {/* Minimal Studio Status Footer */}
       <footer className="border-t border-zinc-800/60 py-2.5 px-4 lg:px-6 bg-zinc-950 text-xs text-zinc-500 no-print">

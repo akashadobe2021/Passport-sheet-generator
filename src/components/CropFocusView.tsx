@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowLeft, Check } from 'lucide-react';
 import { EditorSection } from './EditorSection';
 import { CropState, PhotoPreset } from '../types/passport';
+import { ServerStatusResponse } from '../types/serverStatus';
 
 interface CropFocusViewProps {
   image: HTMLImageElement | null;
@@ -15,6 +16,8 @@ interface CropFocusViewProps {
   onReturnToStudio: () => void;
   cutoutImg?: HTMLImageElement | null;
   setCutoutImg?: (img: HTMLImageElement | null) => void;
+  serverStatus?: ServerStatusResponse | null;
+  onOpenServerStatusModal?: () => void;
 }
 
 export const CropFocusView: React.FC<CropFocusViewProps> = ({
@@ -29,6 +32,8 @@ export const CropFocusView: React.FC<CropFocusViewProps> = ({
   onReturnToStudio,
   cutoutImg,
   setCutoutImg,
+  serverStatus,
+  onOpenServerStatusModal,
 }) => {
   return (
     <div className="space-y-4">
@@ -64,7 +69,10 @@ export const CropFocusView: React.FC<CropFocusViewProps> = ({
         setShowGuides={setShowGuides}
         cutoutImg={cutoutImg}
         setCutoutImg={setCutoutImg}
+        serverStatus={serverStatus}
+        onOpenServerStatusModal={onOpenServerStatusModal}
       />
     </div>
   );
 };
+
