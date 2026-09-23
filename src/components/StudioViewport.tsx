@@ -9,7 +9,9 @@ import {
   RefreshCw,
   FileText,
   Sliders,
-  Sparkles
+  Sparkles,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { LayoutConfig, PhotoPreset } from '../types/passport';
 import { PAPER_SIZES } from '../constants/presets';
@@ -42,6 +44,7 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [zoomScale, setZoomScale] = useState<number | 'auto'>('auto');
+  const [currentPageIndex, setCurrentPageIndex] = useState<number>(0);
 
   const photoWidthMm = selectedPreset.id === 'custom' ? customWidthMm : selectedPreset.widthMm;
   const photoHeightMm = selectedPreset.id === 'custom' ? customHeightMm : selectedPreset.heightMm;
@@ -58,8 +61,16 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
     photoHeightMm,
     layout.copies,
     layout.marginMm,
-    layout.gapMm
+    layout.gapMm,
+    currentPageIndex
   );
+
+  // Clamp current page index if layout copies reduced
+  useEffect(() => {
+    if (currentPageIndex >= grid.totalPages) {
+      setCurrentPageIndex(Math.max(0, grid.totalPages - 1));
+    }
+  }, [grid.totalPages, currentPageIndex]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -71,7 +82,8 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
       photoWidthMm,
       photoHeightMm,
       layout,
-      150
+      150,
+      currentPageIndex
     );
 
     canvas.width = sheetCanvas.width;
@@ -80,13 +92,13 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
     if (ctx) {
       ctx.drawImage(sheetCanvas, 0, 0);
     }
-  }, [singlePhotoCanvas, photoWidthMm, photoHeightMm, layout]);
+  }, [singlePhotoCanvas, photoWidthMm, photoHeightMm, layout, currentPageIndex]);
 
   return (
     <div className="flex-1 flex flex-col bg-zinc-950/70 border border-zinc-800 rounded-xl overflow-hidden shadow-2xl relative">
       {/* 1. TOP FLOATING STUDIO TOOLBAR */}
-      <div className="px-4 py-2.5 bg-zinc-900/90 border-b border-zinc-800 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-xs">
+      <div className="px-3 sm:px-4 py-2.5 bg-zinc-900/90 border-b border-zinc-800 flex flex-wrap items-center justify-between gap-2.5 max-w-full">
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs flex-wrap min-w-0">
           <span className="font-semibold text-zinc-100">{paper.name} Sheet</span>
           <span className="text-zinc-500">·</span>
           <span className="font-mono text-zinc-400 tabular-nums">
@@ -99,13 +111,13 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
         </div>
 
         {/* Viewport Scale & Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap max-w-full">
           {/* Zoom controls */}
-          <div className="flex items-center bg-zinc-950 border border-zinc-800 rounded-md p-0.5 text-xs font-mono">
+          <div className="flex items-center bg-zinc-950 border border-zinc-800 rounded-md p-0.5 text-xs font-mono shrink-0">
             <button
               type="button"
               onClick={() => setZoomScale('auto')}
-              className={`px-2 py-0.5 rounded transition-colors ${
+              className={`px-1.5 sm:px-2 py-0.5 rounded transition-colors ${
                 zoomScale === 'auto'
                   ? 'bg-zinc-800 text-amber-400 font-semibold'
                   : 'text-zinc-400 hover:text-white'
@@ -116,7 +128,7 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
             <button
               type="button"
               onClick={() => setZoomScale(0.5)}
-              className={`px-2 py-0.5 rounded transition-colors ${
+              className={`hidden sm:block px-2 py-0.5 rounded transition-colors ${
                 zoomScale === 0.5
                   ? 'bg-zinc-800 text-amber-400 font-semibold'
                   : 'text-zinc-400 hover:text-white'
@@ -127,7 +139,7 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
             <button
               type="button"
               onClick={() => setZoomScale(0.75)}
-              className={`px-2 py-0.5 rounded transition-colors ${
+              className={`hidden md:block px-2 py-0.5 rounded transition-colors ${
                 zoomScale === 0.75
                   ? 'bg-zinc-800 text-amber-400 font-semibold'
                   : 'text-zinc-400 hover:text-white'
@@ -138,7 +150,7 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
             <button
               type="button"
               onClick={() => setZoomScale(1.0)}
-              className={`px-2 py-0.5 rounded transition-colors ${
+              className={`px-1.5 sm:px-2 py-0.5 rounded transition-colors ${
                 zoomScale === 1.0
                   ? 'bg-zinc-800 text-amber-400 font-semibold'
                   : 'text-zinc-400 hover:text-white'
@@ -151,18 +163,18 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
           <button
             type="button"
             onClick={onOpenCropFocus}
-            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-md transition-colors"
+            className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-md transition-colors shrink-0"
             title="Adjust Face Framing & Touch Crop"
           >
             <Sliders className="w-3 h-3 text-amber-400" />
-            <span>Face Crop</span>
+            <span className="hidden xs:inline">Face </span>Crop
           </button>
 
           <button
             type="button"
             onClick={onPrint}
             disabled={!singlePhotoCanvas}
-            className="p-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/80 transition-colors disabled:opacity-40"
+            className="p-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/80 transition-colors disabled:opacity-40 shrink-0"
             title="Browser Print Preview"
           >
             <Printer className="w-3.5 h-3.5" />
@@ -172,10 +184,15 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
             type="button"
             onClick={onDownloadPdf}
             disabled={!singlePhotoCanvas || isExporting}
-            className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-zinc-950 bg-amber-400 hover:bg-amber-300 rounded-md transition-colors disabled:opacity-40 shadow-sm"
+            className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 text-xs font-semibold text-zinc-950 bg-amber-400 hover:bg-amber-300 rounded-md transition-colors disabled:opacity-40 shadow-sm shrink-0"
           >
             <Download className="w-3.5 h-3.5" />
             <span>{isExporting ? 'Exporting...' : 'PDF'}</span>
+            {!isExporting && grid.totalPages > 1 && (
+              <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-zinc-950/15 border border-zinc-950/20 font-bold">
+                {grid.totalPages}p
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -217,7 +234,41 @@ export const StudioViewport: React.FC<StudioViewportProps> = ({
         )}
       </div>
 
-      {/* 3. BOTTOM RULER / SPEC FOOTER */}
+      {/* 3. SHEET NAVIGATION BAR (Below the photo sheet) */}
+      {grid.totalPages > 1 && (
+        <div className="px-4 py-2 bg-zinc-900/95 border-t border-zinc-800 flex items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => setCurrentPageIndex((p) => Math.max(0, p - 1))}
+            disabled={currentPageIndex === 0}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            title="Previous Sheet"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span>Previous Sheet</span>
+          </button>
+
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-zinc-950 border border-zinc-800 rounded-lg text-xs font-mono">
+            <span className="text-zinc-400">Sheet</span>
+            <span className="font-bold text-amber-400">{currentPageIndex + 1}</span>
+            <span className="text-zinc-600">of</span>
+            <span className="font-bold text-zinc-300">{grid.totalPages}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setCurrentPageIndex((p) => Math.min(grid.totalPages - 1, p + 1))}
+            disabled={currentPageIndex === grid.totalPages - 1}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            title="Next Sheet"
+          >
+            <span>Next Sheet</span>
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* 4. BOTTOM RULER / SPEC FOOTER */}
       <div className="px-4 py-2 bg-zinc-900/90 border-t border-zinc-800 text-[11px] text-zinc-400 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <span>

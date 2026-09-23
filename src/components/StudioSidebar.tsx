@@ -474,7 +474,7 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
             Sheet & Grid Layout
           </span>
           <span className="text-[11px] font-mono text-zinc-400">
-            Capacity: {maxPossibleCopies}
+            {maxPossibleCopies} / sheet max
           </span>
         </div>
 
@@ -524,12 +524,19 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
 
         {/* Number of Copies */}
         <div className="space-y-1.5">
-          <div className="flex justify-between text-xs text-zinc-300">
+          <div className="flex items-center justify-between text-xs text-zinc-300">
             <span>Number of Copies</span>
-            <span className="font-mono text-amber-400 font-semibold">{layout.copies} Photos</span>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-amber-400 font-semibold">{layout.copies} Photos</span>
+              {layout.copies > maxPossibleCopies && (
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  {Math.ceil(layout.copies / maxPossibleCopies)} Sheets
+                </span>
+              )}
+            </div>
           </div>
-          <div className="grid grid-cols-7 gap-1">
-            {COPY_OPTIONS.map((c) => (
+          <div className="grid grid-cols-8 gap-1">
+            {[4, 8, 16, 24, 32, 40, 48, 64].map((c) => (
               <button
                 key={c}
                 type="button"
@@ -544,6 +551,11 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
               </button>
             ))}
           </div>
+          {layout.copies > maxPossibleCopies && (
+            <p className="text-[11px] text-amber-300/80 bg-amber-500/10 rounded px-2 py-1 border border-amber-500/20">
+              💡 {layout.copies} photos will automatically paginate across {Math.ceil(layout.copies / maxPossibleCopies)} sheets on export.
+            </p>
+          )}
         </div>
 
         {/* Spacing & Margins Sliders */}

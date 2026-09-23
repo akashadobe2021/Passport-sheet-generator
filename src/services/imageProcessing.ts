@@ -249,8 +249,23 @@ export function applyBackgroundReplacement(
   ctx.putImageData(imgData, 0, 0);
 }
 
+export interface SheetLayoutResult {
+  cols: number;
+  rows: number;
+  maxPerPage: number;
+  totalPositions: number;
+  actualCopies: number;
+  totalRequestedCopies: number;
+  totalPages: number;
+  currentPage: number;
+  startX: number;
+  startY: number;
+  positions: Array<{ x: number; y: number }>;
+}
+
 /**
  * Calculates grid arrangement (columns & rows) and coordinates on sheet
+ * Supports multi-sheet carryover when requested copies exceed single sheet capacity.
  */
 export function calculateSheetLayout(
   paperWidthMm: number,
@@ -259,27 +274,25 @@ export function calculateSheetLayout(
   photoHeightMm: number,
   requestedCopies: number,
   marginMm: number,
-  gapMm: number
-): {
-  cols: number;
-  rows: number;
-  totalPositions: number;
-  actualCopies: number;
-  startX: number;
-  startY: number;
-  positions: Array<{ x: number; y: number }>;
-} {
+  gapMm: number,
+  pageIndex: number = 0
+): SheetLayoutResult {
   const printableW = paperWidthMm - marginMm * 2;
   const printableH = paperHeightMm - marginMm * 2;
 
-  // Max cols and rows that can physically fit
+  // Max cols and rows that can physically fit on one sheet
   const maxCols = Math.max(1, Math.floor((printableW + gapMm) / (photoWidthMm + gapMm)));
   const maxRows = Math.max(1, Math.floor((printableH + gapMm) / (photoHeightMm + gapMm)));
 
-  const maxPossible = maxCols * maxRows;
-  const actualCopies = Math.min(requestedCopies, maxPossible);
+  const maxPerPage = maxCols * maxRows;
+  const totalPages = Math.max(1, Math.ceil(requestedCopies / maxPerPage));
+  const safePageIndex = Math.min(Math.max(0, pageIndex), totalPages - 1);
 
-  // Compute best balanced grid for requested copies
+  const copiesBeforeThisPage = safePageIndex * maxPerPage;
+  const copiesRemaining = Math.max(0, requestedCopies - copiesBeforeThisPage);
+  const actualCopies = Math.min(copiesRemaining, maxPerPage);
+
+  // Compute best balanced grid for requested copies on this page
   let cols = Math.min(actualCopies, maxCols);
   let rows = Math.ceil(actualCopies / cols);
 
@@ -315,8 +328,12 @@ export function calculateSheetLayout(
   return {
     cols,
     rows,
-    totalPositions: maxPossible,
+    maxPerPage,
+    totalPositions: maxPerPage,
     actualCopies,
+    totalRequestedCopies: requestedCopies,
+    totalPages,
+    currentPage: safePageIndex,
     startX,
     startY,
     positions,
@@ -324,14 +341,15 @@ export function calculateSheetLayout(
 }
 
 /**
- * Renders the entire A4 / Sheet to a high-resolution Canvas
+ * Renders the entire A4 / Sheet to a high-resolution Canvas for a given page index
  */
 export function renderCompleteSheetCanvas(
   singlePhotoCanvas: HTMLCanvasElement,
   photoWidthMm: number,
   photoHeightMm: number,
   layout: LayoutConfig,
-  dpi: number = 300
+  dpi: number = 300,
+  pageIndex: number = 0
 ): HTMLCanvasElement {
   const paper = PAPER_SIZES[layout.paperSize];
   const isLandscape = layout.orientation === 'landscape';
@@ -361,7 +379,8 @@ export function renderCompleteSheetCanvas(
     photoHeightMm,
     layout.copies,
     layout.marginMm,
-    layout.gapMm
+    layout.gapMm,
+    pageIndex
   );
 
   const mmToPx = (mm: number) => (mm / 25.4) * dpi;
@@ -369,13 +388,15 @@ export function renderCompleteSheetCanvas(
   const photoH = mmToPx(photoHeightMm);
   const borderWidth = mmToPx(layout.borderWidthMm);
 
+  const pageNumStr = grid.totalPages > 1 ? ` · Sheet ${grid.currentPage + 1}/${grid.totalPages}` : '';
+
   // Draw Header / Metadata or Print Shop Barcode Stamp if enabled
   if (layout.includeBarcodeStamp && layout.orderToken) {
     ctx.save();
     const token = layout.orderToken;
     const studio = layout.studioName || 'STUDIO PRINT LAB';
     const cust = layout.customerName ? ` · Client: ${layout.customerName}` : '';
-    const headerStr = `${studio} · [TOKEN: ${token}]${cust} · ${layout.copies} COPIES · ${dpi} DPI`;
+    const headerStr = `${studio} · [TOKEN: ${token}]${cust} · ${grid.actualCopies} photos (Total ${layout.copies})${pageNumStr} · ${dpi} DPI`;
 
     ctx.fillStyle = '#0F172A';
     ctx.font = `bold ${Math.max(10, Math.round(mmToPx(2.6)))}px 'JetBrains Mono', monospace`;
@@ -405,8 +426,9 @@ export function renderCompleteSheetCanvas(
     ctx.font = `${Math.round(mmToPx(2.5))}px 'JetBrains Mono', monospace`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
+    const headerTextWithPage = grid.totalPages > 1 ? `${layout.headerText}${pageNumStr}` : layout.headerText;
     ctx.fillText(
-      layout.headerText,
+      headerTextWithPage,
       mmToPx(layout.marginMm),
       mmToPx(layout.marginMm * 0.4)
     );

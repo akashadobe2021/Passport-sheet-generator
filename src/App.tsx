@@ -256,34 +256,49 @@ export default function App() {
           cutoutImg
         );
 
-        const sheetCanvas = renderCompleteSheetCanvas(
-          photoCanvas,
+        const initialGrid = calculateSheetLayout(
+          paperW,
+          paperH,
           photoWidthMm,
           photoHeightMm,
-          layout,
-          targetDpi
+          layout.copies,
+          layout.marginMm,
+          layout.gapMm,
+          0
         );
 
         const ext = format === 'png' ? 'png' : 'jpg';
         const mime = format === 'png' ? 'image/png' : 'image/jpeg';
-        const dataUrl = sheetCanvas.toDataURL(mime, 0.95);
 
-        const a = document.createElement('a');
-        const fileName = `passport-sheet-${layout.paperSize.toLowerCase()}-${layout.copies}copies-${targetDpi}dpi.${ext}`;
-        a.href = dataUrl;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        for (let p = 0; p < initialGrid.totalPages; p++) {
+          const sheetCanvas = renderCompleteSheetCanvas(
+            photoCanvas,
+            photoWidthMm,
+            photoHeightMm,
+            layout,
+            targetDpi,
+            p
+          );
 
-        StorageService.recordExport({
-          fileName,
-          exportType: ext as any,
-          copiesCount: layout.copies,
-          paperSize: layout.paperSize,
-          dpi: targetDpi,
-          fileSizeKb: Math.round(dataUrl.length * 0.75 / 1024),
-        });
+          const dataUrl = sheetCanvas.toDataURL(mime, 0.95);
+          const a = document.createElement('a');
+          const pageSuffix = initialGrid.totalPages > 1 ? `-sheet-${p + 1}-of-${initialGrid.totalPages}` : '';
+          const fileName = `passport-sheet-${layout.paperSize.toLowerCase()}-${layout.copies}copies${pageSuffix}-${targetDpi}dpi.${ext}`;
+          a.href = dataUrl;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+
+          StorageService.recordExport({
+            fileName,
+            exportType: ext as any,
+            copiesCount: initialGrid.totalPages > 1 ? layout.copies : layout.copies,
+            paperSize: layout.paperSize,
+            dpi: targetDpi,
+            fileSizeKb: Math.round(dataUrl.length * 0.75 / 1024),
+          });
+        }
 
         triggerConfetti();
       } catch (err) {

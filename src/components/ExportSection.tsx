@@ -13,7 +13,7 @@ import {
 import confetti from 'canvas-confetti';
 import { LayoutConfig, PhotoPreset } from '../types/passport';
 import { PAPER_SIZES } from '../constants/presets';
-import { renderCompleteSheetCanvas, renderSinglePassportPhoto } from '../services/imageProcessing';
+import { calculateSheetLayout, renderCompleteSheetCanvas, renderSinglePassportPhoto } from '../services/imageProcessing';
 import { generatePassportSheetPdf, downloadPdfBlob } from '../services/pdfService';
 import { StorageService } from '../services/storageService';
 
@@ -122,37 +122,61 @@ export const ExportSection: React.FC<ExportSectionProps> = ({
           targetDpi
         );
 
-        const sheetCanvas = renderCompleteSheetCanvas(
-          photoCanvas,
+        const paper = PAPER_SIZES[layout.paperSize];
+        const isLandscape = layout.orientation === 'landscape';
+        const paperW = isLandscape ? paper.heightMm : paper.widthMm;
+        const paperH = isLandscape ? paper.widthMm : paper.heightMm;
+
+        const initialGrid = calculateSheetLayout(
+          paperW,
+          paperH,
           photoWidthMm,
           photoHeightMm,
-          layout,
-          targetDpi
+          layout.copies,
+          layout.marginMm,
+          layout.gapMm,
+          0
         );
 
         const ext = format === 'png' ? 'png' : 'jpg';
         const mime = format === 'png' ? 'image/png' : 'image/jpeg';
-        const dataUrl = sheetCanvas.toDataURL(mime, 0.95);
 
-        const a = document.createElement('a');
-        const fileName = `passport-sheet-${layout.paperSize.toLowerCase()}-${layout.copies}copies-${targetDpi}dpi.${ext}`;
-        a.href = dataUrl;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        for (let p = 0; p < initialGrid.totalPages; p++) {
+          const sheetCanvas = renderCompleteSheetCanvas(
+            photoCanvas,
+            photoWidthMm,
+            photoHeightMm,
+            layout,
+            targetDpi,
+            p
+          );
 
-        StorageService.recordExport({
-          fileName,
-          exportType: ext as any,
-          copiesCount: layout.copies,
-          paperSize: layout.paperSize,
-          dpi: targetDpi,
-          fileSizeKb: Math.round(dataUrl.length * 0.75 / 1024),
-        });
+          const dataUrl = sheetCanvas.toDataURL(mime, 0.95);
+          const a = document.createElement('a');
+          const pageSuffix = initialGrid.totalPages > 1 ? `-sheet-${p + 1}-of-${initialGrid.totalPages}` : '';
+          const fileName = `passport-sheet-${layout.paperSize.toLowerCase()}-${layout.copies}copies${pageSuffix}-${targetDpi}dpi.${ext}`;
+          a.href = dataUrl;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+
+          StorageService.recordExport({
+            fileName,
+            exportType: ext as any,
+            copiesCount: layout.copies,
+            paperSize: layout.paperSize,
+            dpi: targetDpi,
+            fileSizeKb: Math.round(dataUrl.length * 0.75 / 1024),
+          });
+        }
 
         triggerConfetti();
-        setExportSuccessMsg(`Downloaded full sheet image (${fileName})`);
+        setExportSuccessMsg(
+          initialGrid.totalPages > 1
+            ? `Downloaded ${initialGrid.totalPages} sheet images for ${layout.copies} copies`
+            : `Downloaded full sheet image`
+        );
       } catch (err) {
         console.error('Image export failed:', err);
       } finally {

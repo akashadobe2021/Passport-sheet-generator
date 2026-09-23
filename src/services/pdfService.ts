@@ -26,181 +26,198 @@ export async function generatePassportSheetPdf(
 
   const pageWidthPt = paperWidthMm * MM_TO_PT;
   const pageHeightPt = paperHeightMm * MM_TO_PT;
-
-  const page = pdfDoc.addPage([pageWidthPt, pageHeightPt]);
+  const photoWidthPt = photoWidthMm * MM_TO_PT;
+  const photoHeightPt = photoHeightMm * MM_TO_PT;
+  const tickLenPt = 2.0 * MM_TO_PT;
 
   // Convert canvas to lossless / high-quality image bytes
   const dataUrl = singlePhotoCanvas.toDataURL('image/jpeg', 0.98);
   const imageBytes = await fetch(dataUrl).then((res) => res.arrayBuffer());
   const embeddedImage = await pdfDoc.embedJpg(imageBytes);
 
-  const grid = calculateSheetLayout(
+  // Compute total pages needed
+  const initialGrid = calculateSheetLayout(
     paperWidthMm,
     paperHeightMm,
     photoWidthMm,
     photoHeightMm,
     layout.copies,
     layout.marginMm,
-    layout.gapMm
+    layout.gapMm,
+    0
   );
 
-  const photoWidthPt = photoWidthMm * MM_TO_PT;
-  const photoHeightPt = photoHeightMm * MM_TO_PT;
-  const tickLenPt = 2.0 * MM_TO_PT;
+  const totalPages = initialGrid.totalPages;
 
-  // Header text or Print Shop Barcode Tracking Stamp
-  if (layout.includeBarcodeStamp && layout.orderToken) {
-    const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const token = layout.orderToken;
-    const studio = layout.studioName || 'STUDIO PRINT LAB';
-    const cust = layout.customerName ? ` · Client: ${layout.customerName}` : '';
-    const headerStr = `${studio} · [TOKEN: ${token}]${cust} · ${layout.copies} COPIES · ${dpi} DPI`;
+  for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
+    const page = pdfDoc.addPage([pageWidthPt, pageHeightPt]);
 
-    page.drawText(headerStr, {
-      x: layout.marginMm * MM_TO_PT,
-      y: pageHeightPt - (layout.marginMm * 0.45 * MM_TO_PT),
-      size: 7.5,
-      font,
-      color: rgb(0.1, 0.12, 0.18),
-    });
+    const grid = calculateSheetLayout(
+      paperWidthMm,
+      paperHeightMm,
+      photoWidthMm,
+      photoHeightMm,
+      layout.copies,
+      layout.marginMm,
+      layout.gapMm,
+      pageIdx
+    );
 
-    // Embed barcode image on the top right
-    try {
-      const barcodeDataUrl = BarcodeService.generateBarcodeDataUrl(token, {
-        width: 2,
-        height: 36,
-        displayValue: true,
-        fontSize: 10,
+    const pageNumStr = totalPages > 1 ? ` · Sheet ${pageIdx + 1}/${totalPages}` : '';
+
+    // Header text or Print Shop Barcode Tracking Stamp
+    if (layout.includeBarcodeStamp && layout.orderToken) {
+      const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      const token = layout.orderToken;
+      const studio = layout.studioName || 'STUDIO PRINT LAB';
+      const cust = layout.customerName ? ` · Client: ${layout.customerName}` : '';
+      const headerStr = `${studio} · [TOKEN: ${token}]${cust} · ${grid.actualCopies} photos (Total ${layout.copies})${pageNumStr} · ${dpi} DPI`;
+
+      page.drawText(headerStr, {
+        x: layout.marginMm * MM_TO_PT,
+        y: pageHeightPt - (layout.marginMm * 0.45 * MM_TO_PT),
+        size: 7.5,
+        font,
+        color: rgb(0.1, 0.12, 0.18),
       });
-      if (barcodeDataUrl) {
-        const barcodeBytes = await fetch(barcodeDataUrl).then((r) => r.arrayBuffer());
-        const barcodeImg = await pdfDoc.embedPng(barcodeBytes);
-        const barcodeWidthPt = 35 * MM_TO_PT;
-        const barcodeHeightPt = 6 * MM_TO_PT;
 
-        page.drawImage(barcodeImg, {
-          x: pageWidthPt - (layout.marginMm * MM_TO_PT) - barcodeWidthPt,
-          y: pageHeightPt - (layout.marginMm * 0.75 * MM_TO_PT) - (barcodeHeightPt * 0.5),
-          width: barcodeWidthPt,
-          height: barcodeHeightPt,
+      // Embed barcode image on the top right
+      try {
+        const barcodeDataUrl = BarcodeService.generateBarcodeDataUrl(token, {
+          width: 2,
+          height: 36,
+          displayValue: true,
+          fontSize: 10,
         });
+        if (barcodeDataUrl) {
+          const barcodeBytes = await fetch(barcodeDataUrl).then((r) => r.arrayBuffer());
+          const barcodeImg = await pdfDoc.embedPng(barcodeBytes);
+          const barcodeWidthPt = 35 * MM_TO_PT;
+          const barcodeHeightPt = 6 * MM_TO_PT;
+
+          page.drawImage(barcodeImg, {
+            x: pageWidthPt - (layout.marginMm * MM_TO_PT) - barcodeWidthPt,
+            y: pageHeightPt - (layout.marginMm * 0.75 * MM_TO_PT) - (barcodeHeightPt * 0.5),
+            width: barcodeWidthPt,
+            height: barcodeHeightPt,
+          });
+        }
+      } catch (e) {
+        console.warn('Could not embed barcode into PDF:', e);
       }
-    } catch (e) {
-      console.warn('Could not embed barcode into PDF:', e);
+    } else if (layout.includeHeader && layout.headerText) {
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const headerWithPage = totalPages > 1 ? `${layout.headerText}${pageNumStr}` : layout.headerText;
+      page.drawText(headerWithPage, {
+        x: layout.marginMm * MM_TO_PT,
+        y: pageHeightPt - (layout.marginMm * 0.4 * MM_TO_PT),
+        size: 7,
+        font,
+        color: rgb(0.4, 0.45, 0.5),
+      });
     }
-  } else if (layout.includeHeader && layout.headerText) {
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    page.drawText(layout.headerText, {
-      x: layout.marginMm * MM_TO_PT,
-      y: pageHeightPt - (layout.marginMm * 0.4 * MM_TO_PT),
-      size: 7,
-      font,
-      color: rgb(0.4, 0.45, 0.5),
-    });
-  }
 
-  // Draw each passport photo onto the PDF at exact coordinates
-  // Note: PDF coordinate system has (0, 0) at the bottom-left!
-  grid.positions.forEach((pos) => {
-    const xPt = pos.x * MM_TO_PT;
-    // Invert Y coordinate for PDF bottom-left origin:
-    const yPt = pageHeightPt - (pos.y * MM_TO_PT) - photoHeightPt;
+    // Draw each passport photo onto the PDF at exact coordinates
+    grid.positions.forEach((pos) => {
+      const xPt = pos.x * MM_TO_PT;
+      // Invert Y coordinate for PDF bottom-left origin:
+      const yPt = pageHeightPt - (pos.y * MM_TO_PT) - photoHeightPt;
 
-    // 1. Draw image
-    page.drawImage(embeddedImage, {
-      x: xPt,
-      y: yPt,
-      width: photoWidthPt,
-      height: photoHeightPt,
-    });
-
-    // 2. Draw border if specified
-    if (layout.showBorder) {
-      // Parse hex color or default to subtle slate
-      page.drawRectangle({
+      // 1. Draw image
+      page.drawImage(embeddedImage, {
         x: xPt,
         y: yPt,
         width: photoWidthPt,
         height: photoHeightPt,
-        borderWidth: Math.max(0.3, layout.borderWidthMm * MM_TO_PT),
-        borderColor: rgb(0.8, 0.83, 0.88),
       });
-    }
 
-    // 3. Draw Cutting Guides (Vector lines for razor-sharp printing)
-    if (layout.showCutMarks) {
-      const guideColor = rgb(0.65, 0.7, 0.75);
-      const strokeWidth = 0.5;
-
-      if (layout.cutMarkStyle === 'solid') {
+      // 2. Draw border if specified
+      if (layout.showBorder) {
         page.drawRectangle({
           x: xPt,
           y: yPt,
           width: photoWidthPt,
           height: photoHeightPt,
-          borderWidth: strokeWidth,
-          borderColor: guideColor,
-        });
-      } else {
-        // Corner ticks
-        // Top-left corner: (xPt, yPt + photoHeightPt)
-        page.drawLine({
-          start: { x: xPt - tickLenPt, y: yPt + photoHeightPt },
-          end: { x: xPt, y: yPt + photoHeightPt },
-          thickness: strokeWidth,
-          color: guideColor,
-        });
-        page.drawLine({
-          start: { x: xPt, y: yPt + photoHeightPt },
-          end: { x: xPt, y: yPt + photoHeightPt + tickLenPt },
-          thickness: strokeWidth,
-          color: guideColor,
-        });
-
-        // Top-right corner: (xPt + photoWidthPt, yPt + photoHeightPt)
-        page.drawLine({
-          start: { x: xPt + photoWidthPt, y: yPt + photoHeightPt },
-          end: { x: xPt + photoWidthPt + tickLenPt, y: yPt + photoHeightPt },
-          thickness: strokeWidth,
-          color: guideColor,
-        });
-        page.drawLine({
-          start: { x: xPt + photoWidthPt, y: yPt + photoHeightPt },
-          end: { x: xPt + photoWidthPt, y: yPt + photoHeightPt + tickLenPt },
-          thickness: strokeWidth,
-          color: guideColor,
-        });
-
-        // Bottom-left corner: (xPt, yPt)
-        page.drawLine({
-          start: { x: xPt - tickLenPt, y: yPt },
-          end: { x: xPt, y: yPt },
-          thickness: strokeWidth,
-          color: guideColor,
-        });
-        page.drawLine({
-          start: { x: xPt, y: yPt - tickLenPt },
-          end: { x: xPt, y: yPt },
-          thickness: strokeWidth,
-          color: guideColor,
-        });
-
-        // Bottom-right corner: (xPt + photoWidthPt, yPt)
-        page.drawLine({
-          start: { x: xPt + photoWidthPt, y: yPt },
-          end: { x: xPt + photoWidthPt + tickLenPt, y: yPt },
-          thickness: strokeWidth,
-          color: guideColor,
-        });
-        page.drawLine({
-          start: { x: xPt + photoWidthPt, y: yPt - tickLenPt },
-          end: { x: xPt + photoWidthPt, y: yPt },
-          thickness: strokeWidth,
-          color: guideColor,
+          borderWidth: Math.max(0.3, layout.borderWidthMm * MM_TO_PT),
+          borderColor: rgb(0.8, 0.83, 0.88),
         });
       }
-    }
-  });
+
+      // 3. Draw Cutting Guides (Vector lines for razor-sharp printing)
+      if (layout.showCutMarks) {
+        const guideColor = rgb(0.65, 0.7, 0.75);
+        const strokeWidth = 0.5;
+
+        if (layout.cutMarkStyle === 'solid') {
+          page.drawRectangle({
+            x: xPt,
+            y: yPt,
+            width: photoWidthPt,
+            height: photoHeightPt,
+            borderWidth: strokeWidth,
+            borderColor: guideColor,
+          });
+        } else {
+          // Corner ticks
+          // Top-left corner: (xPt, yPt + photoHeightPt)
+          page.drawLine({
+            start: { x: xPt - tickLenPt, y: yPt + photoHeightPt },
+            end: { x: xPt, y: yPt + photoHeightPt },
+            thickness: strokeWidth,
+            color: guideColor,
+          });
+          page.drawLine({
+            start: { x: xPt, y: yPt + photoHeightPt },
+            end: { x: xPt, y: yPt + photoHeightPt + tickLenPt },
+            thickness: strokeWidth,
+            color: guideColor,
+          });
+
+          // Top-right corner: (xPt + photoWidthPt, yPt + photoHeightPt)
+          page.drawLine({
+            start: { x: xPt + photoWidthPt, y: yPt + photoHeightPt },
+            end: { x: xPt + photoWidthPt + tickLenPt, y: yPt + photoHeightPt },
+            thickness: strokeWidth,
+            color: guideColor,
+          });
+          page.drawLine({
+            start: { x: xPt + photoWidthPt, y: yPt + photoHeightPt },
+            end: { x: xPt + photoWidthPt, y: yPt + photoHeightPt + tickLenPt },
+            thickness: strokeWidth,
+            color: guideColor,
+          });
+
+          // Bottom-left corner: (xPt, yPt)
+          page.drawLine({
+            start: { x: xPt - tickLenPt, y: yPt },
+            end: { x: xPt, y: yPt },
+            thickness: strokeWidth,
+            color: guideColor,
+          });
+          page.drawLine({
+            start: { x: xPt, y: yPt - tickLenPt },
+            end: { x: xPt, y: yPt },
+            thickness: strokeWidth,
+            color: guideColor,
+          });
+
+          // Bottom-right corner: (xPt + photoWidthPt, yPt)
+          page.drawLine({
+            start: { x: xPt + photoWidthPt, y: yPt },
+            end: { x: xPt + photoWidthPt + tickLenPt, y: yPt },
+            thickness: strokeWidth,
+            color: guideColor,
+          });
+          page.drawLine({
+            start: { x: xPt + photoWidthPt, y: yPt - tickLenPt },
+            end: { x: xPt + photoWidthPt, y: yPt },
+            thickness: strokeWidth,
+            color: guideColor,
+          });
+        }
+      }
+    });
+  }
 
   return await pdfDoc.save();
 }
